@@ -98,6 +98,9 @@ def model_training(dataset, ratio, temperature,
     # 开始训练
     for active_iter in range(active_iter_num):
         print('# active_iter =', active_iter)
+        ensemble_list = []
+        ensemble_loss = np.array([])
+
         shuffled_train_idx = torch.randperm(len(x_train))
         x_train = x_train[shuffled_train_idx]
         y_train = y_train[shuffled_train_idx]
@@ -118,6 +121,7 @@ def model_training(dataset, ratio, temperature,
         for epoch in range(epoch_num):
             print('## epoch =', epoch)
             model.train()
+            # 1. 迭代训练过程:
             total_output = torch.Tensor([])  # 所有批次数据的总输出
             ground_truth = torch.Tensor([])  # 所有批次的总ground truth
             total_mask = torch.Tensor([])  # xx
@@ -161,7 +165,7 @@ def model_training(dataset, ratio, temperature,
                     np.save(save_path_pre + '/' + 'task_embedding_list.npy', task_embedding_list)
                     np.save(save_path_pre + '/' + 'encoder_output_list.npy', encoder_output_list)
 
-                # 记录模型输出和
+                # 记录模型输出和ground truth
                 total_output = torch.cat([total_output, output.cpu().detach()],0)
                 ground_truth = torch.cat([ground_truth, batch_y.cpu().detach()], 0)
 
@@ -170,5 +174,10 @@ def model_training(dataset, ratio, temperature,
                 loss = criterion(output[batch_mask != 0], batch_y[batch_mask != 0])
                 loss.backward()
                 optimizer.step()
+
             train_loss = criterion(total_output[total_mask != 0], ground_truth.mul(total_mask))
             if epoch < ensemble_capacity:
+                tmp_model = copy.deepcopy(model)
+                tmp_model.eval()
+                ensemble_list.append(tmp_model)
+                ensemble_loss = np.hstac.k((ensemble_loss, train_loss))
