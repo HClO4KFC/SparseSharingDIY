@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import argparse
 
-from trainEvalAndTest.modelTrain import model_training
+from process.trainEvalTest import model_training
 
 
 def get_args():

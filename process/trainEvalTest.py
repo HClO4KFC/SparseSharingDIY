@@ -5,9 +5,10 @@ import torch
 import copy
 import pickle
 
-from utils.dataParse import data_parse, data_shuffle, data_slice
+from utils.dataParse import data_parse, data_shuffle
 from model.netDef import HOINetTransformer
 from trainDetails import train_base, update_ensemble
+from evalDetails import eval_and_test
 
 
 def model_training(dataset, ratio, temperature,
@@ -64,6 +65,7 @@ def model_training(dataset, ratio, temperature,
     # 进行数个训练iter,每个iter产生一个集成模型,进行一轮train-eval-test,使用一遍所有数据
     for active_iter in range(active_iter_num):
         print('# active_iter =', active_iter)
+        is_last_iter = (active_iter == end_num)
         ensemble_list = []  # 集成模型中的基模型列表
         ensemble_loss = np.array([])  # 各个基模型的损失值,用于基模型的取舍
         iter_train_loss = np.array([])
@@ -71,6 +73,7 @@ def model_training(dataset, ratio, temperature,
         iter_test_loss = np.array([])
         patience_loss = 100  # 能容忍的最大损失函数值
         patience = 0  # 记录loss停止下降的epoch次数
+        iter_train_loss = np.array([])
 
         # 随机打乱训练集
         x_train, y_train, mask_train = data_shuffle(*parsed_data.get_train_set())
@@ -98,8 +101,10 @@ def model_training(dataset, ratio, temperature,
             epoch_output, epoch_gt, epoch_mask, epoch_encoder_output_list, epoch_task_embedding_list = train_base(
                 model=model, optimizer=optimizer, criterion=criterion,
                 train_batch_num=train_batch_num, batch_size=train_batch_size,
-                parsed_data=parsed_data, is_last_iter=(active_iter == end_num)
+                parsed_data=parsed_data, is_last_iter=is_last_iter
             )
+            task_embedding_list.extend(epoch_task_embedding_list)
+            encoder_output_list.extend(epoch_encoder_output_list)
 
             ensemble_loss, epoch_train_loss = update_ensemble(
                 model=model, criterion=criterion, epoch_output=epoch_output,
@@ -126,89 +131,30 @@ def model_training(dataset, ratio, temperature,
 
             # 设置验证参数
             eval_tst_batch_size = 25000
-            x_eval, y_eval, mask_eval = parsed_data.get_eval_set()
-            ensemble_eval_output = torch.Tensor([])
-            ensemble_test_output = torch.Tensor([])
-            ensemble_eval_mask = torch.Tensor([])
-            ensemble_test_mask = torch.Tensor([])
+            ensemble_eval_output, ensemble_eval_gt, ensemble_eval_mask, \
+                ensemble_test_output, ensemble_test_gt, ensemble_test_mask, \
+                ensemble_encoder_output_list, ensemble_task_embedding_list, \
+                x_eval, x_test = eval_and_test(
+                    ensemble_list=ensemble_list, parsed_data=parsed_data,
+                    batch_size=eval_tst_batch_size, device=device, end_num=end_num,
+                    is_last_iter=is_last_iter, save_path_pre=save_path_pre)
 
-            # 验证各基模型在验证集上的表现
-            for base_no in range(len(ensemble_list)):
-                eval_batch_num = int(len(x_eval)/eval_tst_batch_size)
-                print('evaluating base model no.', base_no, ', sized', eval_tst_batch_size, 'x', eval_batch_num, '.')
-                base_model = ensemble_list[base_no]
-                base_eval_output = torch.Tensor([])
-                base_eval_g_truth = torch.Tensor([])
-                base_eval_mask = torch.Tensor([])
-                # 分批验证
-                for batch in range(eval_batch_num + 1):
-                    print('evaluating batch', batch)
-                    # 切出本批次的x,y和mask
-                    batch_x, batch_y, batch_mask = data_slice(x_eval, y_eval, mask_eval, batch, eval_tst_batch_size)
-                    task_id_batch = parsed_data.task_id_repeated[:len(batch_x)].to(device)
-                    if len(batch_x) == 0:
-                        break
-
-                    # 跑一批验证集数据
-                    output, attentions, task_embedding, encoder_output = base_model(batch_x, task_id_batch)
-                    if base_no == 0:
-                        encoder_output = torch.mul(encoder_output.permute(2, 0, 1), batch_x).permute(1, 2, 0)
-                        if active_iter == end_num:
-                            task_embedding_list.append(task_embedding.cpu().detach().numpy())
-                            encoder_output_list.append(encoder_output.cpu().detach().numpy())
-                            if not os.path.exists('./savings/embedding_collect/' + save_path_pre + '/'):
-                                os.mkdir('./savings/embedding_collect/' + save_path_pre + '/')
-                            np.save('./savings/embedding_collect/' + save_path_pre +
-                                    '/task_embedding_list_eval_' + str(base_no) + '_' + str(end_num))
-                            np.save('./savings/embedding_collect/' + save_path_pre +
-                                    '/encoder_output_list_eval_' + str(base_no) + '_' + str(end_num))
-                    output = output.mul(batch_mask)
-                    base_eval_output = torch.cat([base_eval_output, output.cpu().detach()], 0)
-                    base_eval_g_truth = torch.cat([base_eval_g_truth, batch_y.cpu().detach()], 0)
-                    base_eval_mask = torch.cat([base_eval_mask, batch_mask.cpu().detach()], 0)
-
-                # 将所有基模型的eval阶段输出汇总到ensemble
-                if len(ensemble_eval_output) == 0:
-                    ensemble_eval_output = base_eval_output.clone().unsqeeze(dim=0)
-                else:
-                    ensemble_eval_output = torch.cat([ensemble_eval_output, base_eval_output.unsqueeze(dim=0)])
-
-                # test阶段:
-                base_test_output = torch.Tensor([])
-                base_test_g_truth = torch.Tensor([])
-                base_test_mask = torch.Tensor([])
-                x_test, y_test, mask_test = parsed_data.get_test_set()
-                test_batch_num = int(len(x_test) / eval_tst_batch_size)
-                print('testing base model no.', base_no, ', sized', eval_tst_batch_size, 'x', test_batch_num, '.')
-                for batch in range(+1):
-                    print('testing batch', batch)
-                    batch_x, batch_y, batch_mask = data_slice(x_test, y_test, mask_test, batch, eval_tst_batch_size)
-                    if len(batch_x) == 0:
-                        break
-                    # 用训练好的基模型跑一批test数据
-                    task_id_batch = parsed_data.task_id_repeated[:len(batch_x)].to(device)
-                    output, attentions, _, _ = base_model(batch_x, task_id_batch)
-                    output = output.mul(batch_mask)
-                    # 保存测试阶段该基模型在所有测试输入上的输出,gt和mask
-                    base_test_output = torch.cat([base_eval_output, output.cpu().detach()], 0)
-                    base_test_g_truth = torch.cat([base_test_g_truth, batch_y.cpu().detach()], 0)
-                    base_test_mask = torch.cat([base_test_mask, batch_mask.cpu().detach()], 0)
-
-                # 将所有基模型在测试阶段的输出数据集中到ensemble
-                if len(ensemble_test_output) == 0:
-                    ensemble_test_output = base_test_output.clone().unsqeeze(dim=0)
-                else:
-                    ensemble_test_output = torch.cat([ensemble_test_output, base_test_output])
-            # 总结:至此已经完成了本次epoch的分批训练和分批验证,接下来截止到本epoch,组成的集成模型loss情况
+            encoder_output_list.extend(ensemble_encoder_output_list)
+            task_embedding_list.extend(ensemble_task_embedding_list)
 
             # 计算验证集上的损失
             # 比较双方: (除去所有不在mask中的空白格后)用所有基模型在所有eval数据上的输出取平均后与eval集的ground_truth相比较,比较方式由criterion给出
-            ensemble_eval_loss = criterion(torch.mean(ensemble_eval_output, dim=0)[base_eval_mask != 0], base_eval_g_truth.mul(base_eval_mask)[base_eval_mask != 0]).cpu().detach().numpy()
+            ensemble_eval_loss = criterion(torch.mean(ensemble_eval_output, dim=0)[ensemble_eval_mask != 0],
+                                           ensemble_eval_gt.mul(ensemble_eval_mask)[
+                                               ensemble_eval_mask != 0]).cpu().detach().numpy()
             # 计算测试集上的总损失
-            ensemble_test_loss = criterion(torch.mean(ensemble_test_output, dim=0)[base_test_mask != 0], base_test_g_truth.mul(base_test_mask)[base_test_mask != 0]).cpu().detach().numpy()
+            ensemble_test_loss = criterion(torch.mean(ensemble_test_output, dim=0)[ensemble_test_mask != 0],
+                                           ensemble_test_gt.mul(ensemble_test_mask)[
+                                               ensemble_test_mask != 0]).cpu().detach().numpy()
 
             # 将当前epoch构成的半成品集成模型的eval_loss数据汇总到iter
             iter_eval_loss = np.hstack(iter_eval_loss, ensemble_eval_loss)
+            iter_test_loss = np.hstack(iter_test_loss, ensemble_test_loss)
 
         # 将当前iter的三阶段loss汇总起来
         overall_train_loss.append(iter_train_loss)

@@ -8,6 +8,7 @@ def fun(fun_a):
 
 
 if __name__ == '__main__':
-    a = [1, 2, 3]
-    fun(a)
+    for i in range(10):
+        a = i
     print(a)
+
