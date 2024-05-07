@@ -1,7 +1,11 @@
 import torch
-from dataParse import data_parse, data_shuffle, data_slice, ParsedDataset
+import copy
+import numpy as np
 
-def train_one_batch(model:torch.nn.Module, optimizer:torch.optim.Optimizer, parsed_data:ParsedDataset, batch:int, batch_size:int, is_last_iter:bool):
+from utils.dataParse import data_slice, ParsedDataset
+
+
+def train_one_batch(model:torch.nn.Module, optimizer:torch.optim.Optimizer, criterion, parsed_data:ParsedDataset, batch:int, batch_size:int):
     # 切片出一批数据
     optimizer.zero_grad()
     batch_x, batch_y, batch_mask = data_slice(*(parsed_data.get_train_set()), batch, batch_size)
@@ -31,6 +35,9 @@ def train_one_batch(model:torch.nn.Module, optimizer:torch.optim.Optimizer, pars
     #             task_embedding_list)
     #     np.save('./savings/embedding_collect/' + save_path_pre + '/' + 'encoder_output_list.npy',
     #             encoder_output_list)
+    loss = criterion(output[batch_mask != 0], batch_y[batch_mask != 0])
+    loss.backward()
+    optimizer.step()
     return output.cpu().detach(), batch_y.cpu().detach(), batch_mask.cpu().detach(), \
         encoder_output.cpu().detach().numpy(), task_embedding.cpu().detach().numpy()
     # # 将该batch模型输出, mask和ground truth汇总给epoch保存
@@ -39,19 +46,28 @@ def train_one_batch(model:torch.nn.Module, optimizer:torch.optim.Optimizer, pars
     # epoch_mask = torch.cat([epoch_mask, batch_mask.cpu().detach()], 0)
 
 
-def train_one_epoch(model:torch.nn.Module, optimizer:torch.optim.Optimizer, criterion, train_batch_num:int, train_batch_size:int, parsed_data:ParsedDataset, is_last_iter:bool):
+def train_base(model: torch.nn.Module, optimizer: torch.optim.Optimizer,
+               criterion, train_batch_num: int, batch_size: int,
+               parsed_data: ParsedDataset, is_last_iter: bool):
     model.train()
     epoch_output = torch.Tensor([])  # 所有批次数据的总输出
     epoch_gt = torch.Tensor([])  # 所有批次的总ground truth
     epoch_mask = torch.Tensor([])
-    x_train, y_train, mask_train = parsed_data.get_train_set()
+    epoch_encoder_output_list = []
+    epoch_task_embedding_list = []
 
     # 分批train过程
     for batch in range(train_batch_num + 1):
         print('training batch ' + str(batch) + '...')
-        batch_output, batch_gt, batch_mask = train_one_batch(
-            model=model,
+        batch_output, batch_gt, batch_mask, batch_encoder_output, batch_task_embedding = train_one_batch(
+            model=model, optimizer=optimizer, criterion=criterion,
+            parsed_data=parsed_data, batch=batch, batch_size=batch_size
         )
+
+        if is_last_iter:
+            epoch_encoder_output_list.append(batch_encoder_output)
+            epoch_task_embedding_list.append(batch_task_embedding)
+
         epoch_output = torch.cat([epoch_output, batch_output], 0)
         epoch_gt = torch.cat([epoch_gt, batch_gt], 0)
         epoch_mask = torch.cat([epoch_mask, batch_mask], 0)
@@ -61,9 +77,18 @@ def train_one_epoch(model:torch.nn.Module, optimizer:torch.optim.Optimizer, crit
         batch_loss.backward()
         optimizer.step()
 
+    return epoch_output, epoch_gt, epoch_mask, \
+        epoch_encoder_output_list, epoch_task_embedding_list
+
+
+def update_ensemble(model: torch.nn.Module, criterion,
+                    epoch_output: torch.Tensor, epoch_gt: torch.Tensor,
+                    epoch_mask: torch.Tensor, ensemble_capacity: int,
+                    ensemble_list: list, ensemble_loss: np.array):
+
     # 当前epoch所有batch训练完毕,计算总体损失,评估当前epoch的训练结果是否能被加入集成模型
     epoch_train_loss = criterion(epoch_output[epoch_mask != 0], epoch_gt.mul(epoch_mask))
-    if epoch < ensemble_capacity:
+    if len() < ensemble_capacity:
         # 若集成模型容量未满,则将当前epoch的模型直接加入集成模型
         tmp_model = copy.deepcopy(model)
         tmp_model.eval()
@@ -77,17 +102,4 @@ def train_one_epoch(model:torch.nn.Module, optimizer:torch.optim.Optimizer, crit
             tmp_model = copy.deepcopy(model)
             tmp_model.eval()
             ensemble_list[np.argmax(ensemble_loss)] = tmp_model
-
-    # 将所有epoch的损失汇总到iter
-    iter_train_loss = np.hstack(iter_train_loss, epoch_train_loss)
-
-    # 若连续多个epoch的损失函数不降反增,则证明继续训练没有收益了,停止该iter
-    if epoch_train_loss < patience_loss:
-        patience = 0
-        patience_loss = epoch_train_loss
-    else:
-        if patience == 0:
-            tmp_model = copy.deepcopy(model)
-        patience = patience + 1
-        if patience == max_patience:
-            break
+    return ensemble_loss, epoch_train_loss
