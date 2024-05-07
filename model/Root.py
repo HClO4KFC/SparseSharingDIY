@@ -33,7 +33,7 @@ if __name__ == '__main__':
     num_layers = args.layer_num
     gpu_id = args.gpu_id
     ensemble_num = args.ensemble
-    end_num= 2
+    end_num= 1
     num_hidden = args.num_hidden
     seed = args.seed
     step = args.step
