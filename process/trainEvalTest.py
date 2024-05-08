@@ -50,8 +50,14 @@ def model_training(dataset, ratio, temperature,
 
     suggested_end_num, parsed_data = data_parse(dataset, step, device)
 
+    if end_num < 0:
+        end_num = suggested_end_num
+    # 默认参数为-1,意为按照建议截止批次进行
+
     if end_num < suggested_end_num:
         print('warning: end_num is suggested to be at least', suggested_end_num, ', now', end_num)
+    else:
+        print('the program will end after iter', end_num)
 
     # 设置训练参数
     train_batch_size = 128  # (训练过程中)每批处理这么多个分组方案x

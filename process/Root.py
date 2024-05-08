@@ -17,6 +17,7 @@ def get_args():
     parser.add_argument('--step', type=int, default=1)
     parser.add_argument('--ensemble', type=int, default=2)
     parser.add_argument('--num_hidden', type=int, default=128)
+    parser.add_argument('--end_num', type=int, default=-1)
     in_args = parser.parse_args()
     return in_args
 
@@ -33,7 +34,6 @@ if __name__ == '__main__':
     num_layers = args.layer_num
     gpu_id = args.gpu_id
     ensemble_num = args.ensemble
-    end_num= 1
     num_hidden = args.num_hidden
     seed = args.seed
     step = args.step
