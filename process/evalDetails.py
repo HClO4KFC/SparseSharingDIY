@@ -7,11 +7,7 @@ from utils.dataParse import ParsedDataset, data_slice
 
 def eval_and_test(ensemble_list: list, parsed_data: ParsedDataset,
                   batch_size: int, device: str, is_last_iter: bool,
-                  save_path_pre: str, end_num: int) -> tuple[
-                    torch.Tensor, torch.Tensor, torch.Tensor,
-                    torch.Tensor, torch.Tensor, torch.Tensor,
-                    list, list, any, any, torch.Tensor,
-                    torch.Tensor, torch.Tensor, torch.Tensor, ]:
+                  save_path_pre: str, end_num: int):
     x_eval, y_eval, mask_eval = parsed_data.get_eval_set()
     x_test, y_test, mask_test = parsed_data.get_test_set()
     ensemble_eval_output = torch.Tensor([])

@@ -37,6 +37,7 @@ if __name__ == '__main__':
     num_hidden = args.num_hidden
     seed = args.seed
     step = args.step
+    end_num = args.end_num
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
