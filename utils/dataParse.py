@@ -12,6 +12,7 @@ class ParsedDataset:
         self.x_train = x[trn_samp_idx]
         self.y_train = y[trn_samp_idx]
         self.mask_train = mask[trn_samp_idx]  # xx
+
         self.x_eval = x[eval_samp_idx]
         self.y_eval = y[eval_samp_idx]
         self.mask_eval = mask[eval_samp_idx]
@@ -61,14 +62,12 @@ def data_parse(dataset, step, device):
 
     end_num = int((len(x[0]) * (len(x[0]) - 1)) / (2 * step))  # 确定训练主循环的次数
 
-    print("training process will stop after active_iter", end_num)
-
     # 选择所有两两分组和全集分组方案加入训练集, 其余为验证集
     trn_samp_idx = []  # 训练集序号
     for i in range(len(x)):
-        if len(x[i][x[i] == 1] == 1):  # 两两
+        if len(x[i][x[i]==1])==1:  # 两两
             trn_samp_idx.append(i)
-        if len(x[i][x[i] == 1]) == len(x[0]):  # 全集
+        elif len(x[i][x[i]==1])==len(x[0]):  # 全集
             trn_samp_idx.append(i)
     eval_samp_idx = np.setdiff1d(np.array(range(len(x))), trn_samp_idx)  # 验证集是训练集的补集
 

@@ -7,18 +7,18 @@ from process.trainEvalTest import model_training
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset',type=str, default='mimic27')
-    parser.add_argument('--gpu_id',type=str,default='0') # uses gpu #0(used to be 1)
-    parser.add_argument('--ratio',type=str,default = '1')
-    parser.add_argument('--layer_num',type=int,default=2)
-    parser.add_argument('--seed',type=int,default = 0)
-    parser.add_argument('--strategy',type=str,default = 'active')
-    parser.add_argument('--dropout_rate',type=float, default = 0.5)
-    parser.add_argument('--step',type=int,default=1)
-    parser.add_argument('--ensemble',type=int,default=2)
+    parser.add_argument('--dataset', type=str, default='mimic27')
+    parser.add_argument('--gpu_id', type=str, default='0')  # uses gpu #0(used to be 1)
+    parser.add_argument('--ratio', type=str, default='1')
+    parser.add_argument('--layer_num', type=int, default=2)
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--strategy', type=str, default='active')
+    parser.add_argument('--dropout_rate', type=float, default=0.5)
+    parser.add_argument('--step', type=int, default=1)
+    parser.add_argument('--ensemble', type=int, default=2)
     parser.add_argument('--num_hidden', type=int, default=128)
-    args = parser.parse_args()
-    return args
+    in_args = parser.parse_args()
+    return in_args
 
 
 if __name__ == '__main__':

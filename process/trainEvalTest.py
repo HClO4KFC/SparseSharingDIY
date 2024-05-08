@@ -2,7 +2,6 @@ import os.path
 
 import numpy as np
 import torch
-import copy
 import pickle
 
 from utils.dataParse import data_parse, data_shuffle
@@ -31,11 +30,11 @@ def model_training(dataset, ratio, temperature,
     overall_mask_traj = []
 
     save_no = 0
-    save_path_pre = dataset + '_' + str(seed) + '_' + save_no
+    save_path_pre = dataset + '_' + str(seed) + '_' + str(save_no)
     while True:
         if os.path.exists('./savings/embedding_collect/' + save_path_pre + '/'):
             save_no = save_no + 1
-            save_path_pre = dataset + '_' + str(seed) + '_' + save_no
+            save_path_pre = dataset + '_' + str(seed) + '_' + str(save_no)
         else:
             # os.mkdir('./savings/embedding_collect/' + save_path_pre + '/')
             break
@@ -52,7 +51,7 @@ def model_training(dataset, ratio, temperature,
     suggested_end_num, parsed_data = data_parse(dataset, step, device)
 
     if end_num < suggested_end_num:
-        print('warning: end_num is suggested to be at least', end_num)
+        print('warning: end_num is suggested to be at least', suggested_end_num, ', now', end_num)
 
     # 设置训练参数
     train_batch_size = 128  # (训练过程中)每批处理这么多个分组方案x
@@ -73,7 +72,6 @@ def model_training(dataset, ratio, temperature,
         iter_test_loss = np.array([])
         patience_loss = 100  # 能容忍的最大损失函数值
         patience = 0  # 记录loss停止下降的epoch次数
-        iter_train_loss = np.array([])
 
         # 随机打乱训练集
         x_train, y_train, mask_train = data_shuffle(*parsed_data.get_train_set())
@@ -96,7 +94,7 @@ def model_training(dataset, ratio, temperature,
         # 采用集成学习方法,每个epoch在前面基础上训练同一个模型,并观察结果是否更好了
         for epoch in range(epoch_num):
             train_batch_num = int(len(x_train)/train_batch_size)
-            print('## epoch =', epoch, ', train', train_batch_size, 'x', train_batch_num, '.')
+            # print('## epoch =', epoch, ', train', train_batch_size, 'x', train_batch_num, '.')
 
             epoch_output, epoch_gt, epoch_mask, epoch_encoder_output_list, epoch_task_embedding_list = train_base(
                 model=model, optimizer=optimizer, criterion=criterion,
@@ -114,15 +112,13 @@ def model_training(dataset, ratio, temperature,
             )
 
             # 将所有epoch的损失汇总到iter
-            iter_train_loss = np.hstack(iter_train_loss, epoch_train_loss)
+            iter_train_loss = np.hstack((iter_train_loss, epoch_train_loss))
 
             # 若连续多个epoch的损失函数不降反增,则证明继续训练没有收益了,停止该iter
             if epoch_train_loss < patience_loss:
                 patience = 0
                 patience_loss = epoch_train_loss
             else:
-                if patience == 0:
-                    tmp_model = copy.deepcopy(model)
                 patience = patience + 1
                 if patience == max_patience:
                     break
@@ -134,7 +130,7 @@ def model_training(dataset, ratio, temperature,
             ensemble_eval_output, ensemble_eval_gt, ensemble_eval_mask, \
                 ensemble_test_output, ensemble_test_gt, ensemble_test_mask, \
                 ensemble_encoder_output_list, ensemble_task_embedding_list, \
-                x_eval, x_test = eval_and_test(
+                x_eval, x_test, base_eval_mask, base_eval_gt, base_test_mask, base_test_gt = eval_and_test(
                     ensemble_list=ensemble_list, parsed_data=parsed_data,
                     batch_size=eval_tst_batch_size, device=device, end_num=end_num,
                     is_last_iter=is_last_iter, save_path_pre=save_path_pre)
@@ -144,17 +140,15 @@ def model_training(dataset, ratio, temperature,
 
             # 计算验证集上的损失
             # 比较双方: (除去所有不在mask中的空白格后)用所有基模型在所有eval数据上的输出取平均后与eval集的ground_truth相比较,比较方式由criterion给出
-            ensemble_eval_loss = criterion(torch.mean(ensemble_eval_output, dim=0)[ensemble_eval_mask != 0],
-                                           ensemble_eval_gt.mul(ensemble_eval_mask)[
-                                               ensemble_eval_mask != 0]).cpu().detach().numpy()
+            ensemble_eval_loss = criterion(torch.mean(ensemble_eval_output, dim=0)[base_eval_mask != 0],
+                                           base_eval_gt.mul(base_eval_mask)[base_eval_mask != 0]).cpu().detach().numpy()
             # 计算测试集上的总损失
-            ensemble_test_loss = criterion(torch.mean(ensemble_test_output, dim=0)[ensemble_test_mask != 0],
-                                           ensemble_test_gt.mul(ensemble_test_mask)[
-                                               ensemble_test_mask != 0]).cpu().detach().numpy()
+            ensemble_test_loss = criterion(torch.mean(ensemble_test_output, dim=0)[base_test_mask != 0],
+                                           base_test_gt.mul(base_test_mask)[base_test_mask != 0]).cpu().detach().numpy()
 
             # 将当前epoch构成的半成品集成模型的eval_loss数据汇总到iter
-            iter_eval_loss = np.hstack(iter_eval_loss, ensemble_eval_loss)
-            iter_test_loss = np.hstack(iter_test_loss, ensemble_test_loss)
+            iter_eval_loss = np.hstack((iter_eval_loss, ensemble_eval_loss))
+            iter_test_loss = np.hstack((iter_test_loss, ensemble_test_loss))
 
         # 将当前iter的三阶段loss汇总起来
         overall_train_loss.append(iter_train_loss)
@@ -167,7 +161,7 @@ def model_training(dataset, ratio, temperature,
         # 计算并打印当前iter三个阶段结束时的loss
         train_perf = np.hstack((train_perf, epoch_train_loss))
         eval_perf = np.hstack((eval_perf, ensemble_eval_loss))
-        test_perf = np.hdtack((test_perf, ensemble_test_loss))
+        test_perf = np.hstack((test_perf, ensemble_test_loss))
         print('train loss', train_perf)
         print('eval loss', eval_perf)
         print('test loss', test_perf)
@@ -175,7 +169,7 @@ def model_training(dataset, ratio, temperature,
         # 将当前iter的预测结果打包汇总,并备份训练数据
         if dataset == '27tasks':
             iter_pred = torch.cat([overall_test_output, overall_eval_output, y_train.cpu().detach()], 0).numpy()
-            iter_x = torch.cat([x_test.cpu().detach(), x_eval.cpu.detach(), x_train.cpu().detach()])
+            iter_x = torch.cat([x_test.cpu().detach(), x_eval.cpu.detach(), x_train.cpu().detach()], 0).numpy()
         else:
             iter_pred = torch.cat([overall_test_output, y_train.cpu().detach()], 0).numpy()
             iter_x = torch.cat([x_test.cpu().detach(), x_train.cpu().detach()], 0).numpy()

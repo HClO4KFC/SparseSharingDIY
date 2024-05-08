@@ -5,7 +5,7 @@ import numpy as np
 from utils.dataParse import data_slice, ParsedDataset
 
 
-def train_one_batch(model:torch.nn.Module, optimizer:torch.optim.Optimizer, criterion, parsed_data:ParsedDataset, batch:int, batch_size:int):
+def train_one_batch(model: torch.nn.Module, optimizer: torch.optim.Optimizer, criterion, parsed_data: ParsedDataset, batch: int, batch_size: int):
     # 切片出一批数据
     optimizer.zero_grad()
     batch_x, batch_y, batch_mask = data_slice(*(parsed_data.get_train_set()), batch, batch_size)
@@ -31,10 +31,9 @@ def train_one_batch(model:torch.nn.Module, optimizer:torch.optim.Optimizer, crit
     #     task_embedding_list.append(task_embedding.cpu().detach().numpy())
     #     if not os.path.exists('./savings/embedding_collect/' + save_path_pre + '/'):
     #         os.mkdir('./savings/embedding_collect/' + save_path_pre + '/')
-    #     np.save('./savings/embedding_collect/' + save_path_pre + '/' + 'task_embedding_list.npy',
-    #             task_embedding_list)
-    #     np.save('./savings/embedding_collect/' + save_path_pre + '/' + 'encoder_output_list.npy',
-    #             encoder_output_list)
+    #     np.save ('./savings/embedding_collect/' + save_path_pre + '/' + 'task_embedding_list.npy', task_embedding_list)
+    #     np.save ('./savings/embedding_collect/' + save_path_pre + '/' + 'encoder_output_list.npy', encoder_output_list)
+    # (用当前批训练)计算当前batch损失函数,反向传播,更新参数
     loss = criterion(output[batch_mask != 0], batch_y[batch_mask != 0])
     loss.backward()
     optimizer.step()
@@ -58,7 +57,7 @@ def train_base(model: torch.nn.Module, optimizer: torch.optim.Optimizer,
 
     # 分批train过程
     for batch in range(train_batch_num + 1):
-        print('training batch ' + str(batch) + '...')
+        # print('training batch ' + str(batch) + '...')
         batch_output, batch_gt, batch_mask, batch_encoder_output, batch_task_embedding = train_one_batch(
             model=model, optimizer=optimizer, criterion=criterion,
             parsed_data=parsed_data, batch=batch, batch_size=batch_size
@@ -72,11 +71,6 @@ def train_base(model: torch.nn.Module, optimizer: torch.optim.Optimizer,
         epoch_gt = torch.cat([epoch_gt, batch_gt], 0)
         epoch_mask = torch.cat([epoch_mask, batch_mask], 0)
 
-        # (用当前批训练)计算当前batch损失函数,反向传播,更新参数
-        batch_loss = criterion(batch_output[batch_mask != 0], batch_gt[batch_mask != 0])
-        batch_loss.backward()
-        optimizer.step()
-
     return epoch_output, epoch_gt, epoch_mask, \
         epoch_encoder_output_list, epoch_task_embedding_list
 
@@ -87,8 +81,8 @@ def update_ensemble(model: torch.nn.Module, criterion,
                     ensemble_list: list, ensemble_loss: np.array):
 
     # 当前epoch所有batch训练完毕,计算总体损失,评估当前epoch的训练结果是否能被加入集成模型
-    epoch_train_loss = criterion(epoch_output[epoch_mask != 0], epoch_gt.mul(epoch_mask))
-    if len() < ensemble_capacity:
+    epoch_train_loss = criterion(epoch_output[epoch_mask != 0], epoch_gt.mul(epoch_mask)[epoch_mask != 0])
+    if len(ensemble_list) < ensemble_capacity:
         # 若集成模型容量未满,则将当前epoch的模型直接加入集成模型
         tmp_model = copy.deepcopy(model)
         tmp_model.eval()
@@ -96,7 +90,7 @@ def update_ensemble(model: torch.nn.Module, criterion,
         ensemble_loss = np.hstack((ensemble_loss, epoch_train_loss))
     else:
         # 若集成模型容量已满,仅保留其中loss最小的一些
-        if epoch_train_loss < ensemble_loss:
+        if epoch_train_loss < ensemble_loss.max():
             # 若当前epoch模型loss比集成模型中任意一个基模型小,替换之
             ensemble_loss[np.argmax(ensemble_loss)] = epoch_train_loss
             tmp_model = copy.deepcopy(model)

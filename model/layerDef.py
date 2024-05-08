@@ -3,8 +3,8 @@ import torch.optim
 import torch.nn as nn
 
 
-def softmax(input, t=1.0):
-    ex = torch.exp(input / t)
+def softmax(input_, t=1.0):
+    ex = torch.exp(input_ / t)
     #   sum = torch.sum(ex, axis=1)
     return ex
 

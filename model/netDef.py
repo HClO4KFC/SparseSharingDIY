@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from layerDef import TransformerLayer
+from model.layerDef import TransformerLayer
 
 
 class HOINetTransformer(nn.Module):
@@ -24,7 +24,7 @@ class HOINetTransformer(nn.Module):
         self.encoder_layers = nn.ModuleList([
             TransformerLayer(
                 model_dim=model_dim,
-                num_heads= num_heads,
+                num_heads=num_heads,
                 ffn_dim=ffn_dim,
                 dim_per_head=model_dim,
                 dropout=dropout,
@@ -49,7 +49,6 @@ class HOINetTransformer(nn.Module):
 
     def forward(self, inputs, index):
         output = self.task_embedding(index)
-        task_embedding = output[0]  # 返回值之一
         # index是一个(size, 27)的每行都相同的数组,所以只取第0行就可以
         test_output = self.task_embedding(index)
         # 调用了两次唯一的任务编码模块,而不是创建了两个该模块,所有模块的创建过程在__init__过程中就已经完成了
@@ -60,10 +59,15 @@ class HOINetTransformer(nn.Module):
         for encoder in self.encoder_layers:
             output, attention = encoder(output, inputs)
             pass_mask = torch.ones(len(inputs[0])).to('cuda:0')  # 测试输出不需要注意力屏蔽
-            test_output, test_attention = encoder(test_output[0].unsqeeze(0), pass_mask)
+            test_output, test_attention = encoder(test_output[0].unsqueeze(0), pass_mask)
             attentions.append(attention)  # TODO:存它干嘛?
         # TODO:先看训练过程吧
+        task_embedding = self.task_embedding(index)[0]
         encoder_output = output  # 返回值之二
+        output = self.final_output(output)
+        result = torch.squeeze(output, 2)
+        return result, attentions, task_embedding, encoder_output
+
 
 
 
