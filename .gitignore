@@ -4,3 +4,5 @@ model/__pycache__/
 gain_collection/
 .gitignore
 *__init__.py
+log/
+savings/

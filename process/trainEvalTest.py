@@ -98,7 +98,10 @@ def model_training(dataset, ratio, temperature,
         )
 
         # 采用集成学习方法,每个epoch在前面基础上训练同一个模型,并观察结果是否更好了
+        print('epoch: ', end='')
         for epoch in range(epoch_num):
+            if epoch % 10 == 9:
+                print('*', end='')
             train_batch_num = int(len(x_train)/train_batch_size)
             # print('## epoch =', epoch, ', train', train_batch_size, 'x', train_batch_num, '.')
 
@@ -155,7 +158,8 @@ def model_training(dataset, ratio, temperature,
             # 将当前epoch构成的半成品集成模型的eval_loss数据汇总到iter
             iter_eval_loss = np.hstack((iter_eval_loss, ensemble_eval_loss))
             iter_test_loss = np.hstack((iter_test_loss, ensemble_test_loss))
-
+        
+        print()
         # 将当前iter的三阶段loss汇总起来
         overall_train_loss.append(iter_train_loss)
         overall_eval_loss.append(iter_eval_loss)
