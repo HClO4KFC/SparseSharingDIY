@@ -3,7 +3,7 @@ import numpy as np
 import copy
 import torch
 
-from utils.errReport import CustomError
+from init_grouping.utils.errReport import CustomError
 
 
 class ParsedDataset:

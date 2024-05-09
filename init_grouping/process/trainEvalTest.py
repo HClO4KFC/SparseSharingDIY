@@ -4,8 +4,8 @@ import numpy as np
 import torch
 import pickle
 
-from utils.dataParse import data_parse, data_shuffle
-from model.netDef import HOINetTransformer
+from init_grouping.utils.dataParse import data_parse, data_shuffle
+from init_grouping.model.netDef import HOINetTransformer
 from trainDetails import train_base, update_ensemble
 from evalDetails import eval_and_test
 

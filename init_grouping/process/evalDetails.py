@@ -2,7 +2,7 @@ import torch
 import os
 import numpy as np
 
-from utils.dataParse import ParsedDataset, data_slice
+from init_grouping.utils.dataParse import ParsedDataset, data_slice
 
 
 def eval_and_test(ensemble_list: list, parsed_data: ParsedDataset,
