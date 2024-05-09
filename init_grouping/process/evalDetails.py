@@ -46,11 +46,11 @@ def eval_and_test(ensemble_list: list, parsed_data: ParsedDataset,
                 if is_last_iter:
                     ensemble_task_embedding_list.append(task_embedding.cpu().detach().numpy())
                     ensemble_encoder_output_list.append(encoder_output.cpu().detach().numpy())
-                    if not os.path.exists('./savings/embedding_collect/' + save_path_pre + '/'):
-                        os.makedirs('./savings/embedding_collect/' + save_path_pre + '/')
-                    np.save('./savings/embedding_collect/' + save_path_pre +
+                    if not os.path.exists('./save/embedding_collect/' + save_path_pre + '/'):
+                        os.makedirs('./save/embedding_collect/' + save_path_pre + '/')
+                    np.save('./save/embedding_collect/' + save_path_pre +
                             '/task_embedding_list_eval_' + str(base_no) + '_' + str(end_num), ensemble_task_embedding_list)
-                    np.save('./savings/embedding_collect/' + save_path_pre +
+                    np.save('./save/embedding_collect/' + save_path_pre +
                             '/encoder_output_list_eval_' + str(base_no) + '_' + str(end_num), ensemble_encoder_output_list)
 
             output = output.mul(batch_mask)

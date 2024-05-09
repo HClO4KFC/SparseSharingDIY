@@ -10,10 +10,10 @@ from trainDetails import train_base, update_ensemble
 from evalDetails import eval_and_test
 
 
-def model_training(dataset, ratio, temperature,
-                   num_layers, num_hidden, ensemble_num,
-                   gpu_id, step=1, end_num=1, seed=1,
-                   strategy='active', dropout_rate=0.5):
+def mtg_training(dataset, ratio, temperature,
+                 num_layers, num_hidden, ensemble_num,
+                 gpu_id, step=1, end_num=1, seed=1,
+                 strategy='active', dropout_rate=0.5):
 
     # 将用于保存最后一次训练中的任务嵌入信息和编码器层输出
     task_embedding_list = []
@@ -32,11 +32,11 @@ def model_training(dataset, ratio, temperature,
     save_no = 0
     save_path_pre = dataset + '_' + str(seed) + '_' + str(save_no)
     while True:
-        if os.path.exists('./savings/embedding_collect/' + save_path_pre + '/'):
+        if os.path.exists('./save/embedding_collect/' + save_path_pre + '/'):
             save_no = save_no + 1
             save_path_pre = dataset + '_' + str(seed) + '_' + str(save_no)
         else:
-            # os.mkdir('./savings/embedding_collect/' + save_path_pre + '/')
+            # os.mkdir('./save/embedding_collect/' + save_path_pre + '/')
             break
     print("current step is", step)
     print("current strategy is", strategy)

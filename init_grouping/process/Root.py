@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import argparse
 
-from init_grouping.process.trainEvalTest import model_training
+from init_grouping.process.trainEvalTest import mtg_training
 
 
 def get_args():
@@ -41,6 +41,6 @@ if __name__ == '__main__':
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    total_pred_traj = model_training(dataset=dataset, ratio=ratio, temperature=temperature, num_layers=num_layers,
-                                     num_hidden=num_hidden, ensemble_num=ensemble_num, gpu_id=gpu_id, end_num=end_num,
-                                     step=step, strategy=strategy, seed=seed, dropout_rate=args.dropout_rate)
+    total_pred_traj = mtg_training(dataset=dataset, ratio=ratio, temperature=temperature, num_layers=num_layers,
+                                   num_hidden=num_hidden, ensemble_num=ensemble_num, gpu_id=gpu_id, end_num=end_num,
+                                   step=step, strategy=strategy, seed=seed, dropout_rate=args.dropout_rate)

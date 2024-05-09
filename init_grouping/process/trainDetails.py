@@ -29,10 +29,10 @@ def train_one_batch(model: torch.nn.Module, optimizer: torch.optim.Optimizer, cr
     # if is_last_iter:
     #     encoder_output_list.append(encoder_output.cpu().detach().numpy())
     #     task_embedding_list.append(task_embedding.cpu().detach().numpy())
-    #     if not os.path.exists('./savings/embedding_collect/' + save_path_pre + '/'):
-    #         os.mkdir('./savings/embedding_collect/' + save_path_pre + '/')
-    #     np.save ('./savings/embedding_collect/' + save_path_pre + '/' + 'task_embedding_list.npy', task_embedding_list)
-    #     np.save ('./savings/embedding_collect/' + save_path_pre + '/' + 'encoder_output_list.npy', encoder_output_list)
+    #     if not os.path.exists('./save/embedding_collect/' + save_path_pre + '/'):
+    #         os.mkdir('./save/embedding_collect/' + save_path_pre + '/')
+    #     np.save ('./save/embedding_collect/' + save_path_pre + '/' + 'task_embedding_list.npy', task_embedding_list)
+    #     np.save ('./save/embedding_collect/' + save_path_pre + '/' + 'encoder_output_list.npy', encoder_output_list)
     # (用当前批训练)计算当前batch损失函数,反向传播,更新参数
     loss = criterion(output[batch_mask != 0], batch_y[batch_mask != 0])
     loss.backward()

@@ -3,5 +3,5 @@ init_grouping/model/__pycache__/
 .idea/
 .gitignore
 *__init__.py
-log/
-savings/
+init_grouping/log/
+init_grouping/save/
