@@ -64,9 +64,17 @@ def data_parse(dataset, step, device):
 
     # 选择所有两两分组和全集分组方案加入训练集, 其余为验证集
     trn_samp_idx = []  # 训练集序号
+    # pairwise_gain = np.zeros((len(x[0]), len(x[0])))
     for i in range(len(x)):
-        if len(x[i][x[i]==1])==1:  # 两两
+        if len(x[i][x[i]==1])==1:
             trn_samp_idx.append(i)
+            # j = (x[i][x[i]==1])[0]
+            # pairwise_gain[j][j] = y[i][j]
+        # if len(x[i][x[i]==1])==2:  # 两两
+        #     j = (x[i][x[i]==1])[0]
+        #     k = (x[i][x[i]==1])[1]
+        #     pairwise_gain[j][k] = y[i][k]
+        #     pairwise_gain[k][j] = y[i][j]
         elif len(x[i][x[i]==1])==len(x[0]):  # 全集
             trn_samp_idx.append(i)
     eval_samp_idx = np.setdiff1d(np.array(range(len(x))), trn_samp_idx)  # 验证集是训练集的补集

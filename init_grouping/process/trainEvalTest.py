@@ -4,16 +4,16 @@ import numpy as np
 import torch
 import pickle
 
-from init_grouping.utils.dataParse import data_parse, data_shuffle
+from init_grouping.utils.dataParse import data_parse, data_shuffle, ParsedDataset
 from init_grouping.model.netDef import HOINetTransformer
-from trainDetails import train_base, update_ensemble
-from evalDetails import eval_and_test
+from init_grouping.process.trainDetails import train_base, update_ensemble
+from init_grouping.process.evalDetails import eval_and_test
 
 
 def mtg_training(dataset, ratio, temperature,
                  num_layers, num_hidden, ensemble_num,
                  gpu_id, step=1, end_num=1, seed=1,
-                 strategy='active', dropout_rate=0.5):
+                 strategy='active', dropout_rate=0.5)->tuple[ParsedDataset, list]:
 
     # 将用于保存最后一次训练中的任务嵌入信息和编码器层输出
     task_embedding_list = []
@@ -28,16 +28,19 @@ def mtg_training(dataset, ratio, temperature,
     test_perf = np.array([])
     overall_pred_traj = []
     overall_mask_traj = []
+    best_ensemble_list = []
+    best_ensemble_loss = torch.Tensor([])
 
-    save_no = 0
-    save_path_pre = dataset + '_' + str(seed) + '_' + str(save_no)
-    while True:
-        if os.path.exists('./save/embedding_collect/' + save_path_pre + '/'):
-            save_no = save_no + 1
-            save_path_pre = dataset + '_' + str(seed) + '_' + str(save_no)
-        else:
-            # os.mkdir('./save/embedding_collect/' + save_path_pre + '/')
-            break
+    # save_no = 0
+    # save_path_pre = dataset + '_' + str(seed) + '_' + str(save_no)
+    # while True:
+    #     if os.path.exists('./save/embedding_collect/' + save_path_pre + '/'):
+    #         save_no = save_no + 1
+    #         save_path_pre = dataset + '_' + str(seed) + '_' + str(save_no)
+    #     else:
+    #         # os.mkdir('./save/embedding_collect/' + save_path_pre + '/')
+    #         break
+    save_path_pre = './trashBin'
     print("current step is", step)
     print("current strategy is", strategy)
     print("current seed is", seed)
@@ -186,21 +189,25 @@ def mtg_training(dataset, ratio, temperature,
         overall_pred_traj.append(iter_pred)
         overall_mask_traj.append(iter_x)
 
+        if best_ensemble_list == [] or ensemble_loss.mean() < best_ensemble_loss.mean():
+            best_ensemble_list = ensemble_list
+            best_ensemble_loss = ensemble_loss
+
         # 若iter轮次够了,保存log退出
-        path = './log/'+dataset+'/'+ ratio +'/'
-        if not os.path.exists(path):
-            os.makedirs(path)
+        # path = './log/'+dataset+'/'+ ratio +'/'
+        # if not os.path.exists(path):
+        #     os.makedirs(path)
         if active_iter >= end_num:
-            temp = strategy
-            with open('./log/' + dataset + '/' + ratio + '/train_loss_' + temp + '_' + str(temperature) + '_' + str(seed) + '_' + str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
-                pickle.dump(overall_train_loss, fp)
-            with open('./log/'+dataset+'/'+ ratio +'/valid_loss_'+temp+'_'+str(temperature)+'_'+str(seed)+'_'+str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
-                pickle.dump(overall_eval_loss, fp)
-            with open('./log/'+dataset+'/'+ ratio +'/test_loss_'+temp+'_'+str(temperature)+'_'+str(seed)+'_'+str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
-                pickle.dump(overall_test_loss, fp)
-            with open('./log/'+dataset+'/'+ ratio +'/pred_traj'+temp+'_'+str(temperature)+'_'+str(seed)+'_'+str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
-                pickle.dump(overall_pred_traj, fp)
-            with open('./log/'+dataset+'/'+ ratio +'/mask_traj'+temp+'_'+str(temperature)+'_'+str(seed)+'_'+str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
-                pickle.dump(overall_mask_traj, fp)
-            print('The step for saving is', active_iter)
-            return overall_pred_traj
+            # temp = strategy
+            # with open('./log/' + dataset + '/' + ratio + '/train_loss_' + temp + '_' + str(temperature) + '_' + str(seed) + '_' + str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
+            #     pickle.dump(overall_train_loss, fp)
+            # with open('./log/'+dataset+'/'+ ratio +'/valid_loss_'+temp+'_'+str(temperature)+'_'+str(seed)+'_'+str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
+            #     pickle.dump(overall_eval_loss, fp)
+            # with open('./log/'+dataset+'/'+ ratio +'/test_loss_'+temp+'_'+str(temperature)+'_'+str(seed)+'_'+str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
+            #     pickle.dump(overall_test_loss, fp)
+            # with open('./log/'+dataset+'/'+ ratio +'/pred_traj'+temp+'_'+str(temperature)+'_'+str(seed)+'_'+str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
+            #     pickle.dump(overall_pred_traj, fp)
+            # with open('./log/'+dataset+'/'+ ratio +'/mask_traj'+temp+'_'+str(temperature)+'_'+str(seed)+'_'+str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
+            #     pickle.dump(overall_mask_traj, fp)
+            # print('The step for saving is', active_iter)
+            return parsed_data, best_ensemble_list

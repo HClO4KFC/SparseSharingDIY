@@ -1,7 +1,7 @@
 __pycache__/
-init_grouping/model/__pycache__/
 .idea/
 .gitignore
 *__init__.py
-init_grouping/log/
-init_grouping/save/
+log/
+save/
+test_files/
