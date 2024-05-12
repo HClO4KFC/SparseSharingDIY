@@ -1,13 +1,11 @@
-import os.path
-
 import numpy as np
 import torch
-import pickle
 
-from init_grouping.utils.dataParse import data_parse, data_shuffle, ParsedDataset
-from init_grouping.model.netDef import HOINetTransformer
+from utils.dataParse import data_parse, data_shuffle, ParsedDataset
+from init_grouping.mtg_net.netDef import HOINetTransformer
 from init_grouping.process.trainDetails import train_base, update_ensemble
 from init_grouping.process.evalDetails import eval_and_test
+from utils.fileMgmt import load_parsed_data, load_models, save_models, save_parsed_data
 
 
 def mtg_training(dataset, ratio, temperature,
@@ -193,21 +191,34 @@ def mtg_training(dataset, ratio, temperature,
             best_ensemble_list = ensemble_list
             best_ensemble_loss = ensemble_loss
 
-        # 若iter轮次够了,保存log退出
-        # path = './log/'+dataset+'/'+ ratio +'/'
-        # if not os.path.exists(path):
-        #     os.makedirs(path)
         if active_iter >= end_num:
-            # temp = strategy
-            # with open('./log/' + dataset + '/' + ratio + '/train_loss_' + temp + '_' + str(temperature) + '_' + str(seed) + '_' + str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
-            #     pickle.dump(overall_train_loss, fp)
-            # with open('./log/'+dataset+'/'+ ratio +'/valid_loss_'+temp+'_'+str(temperature)+'_'+str(seed)+'_'+str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
-            #     pickle.dump(overall_eval_loss, fp)
-            # with open('./log/'+dataset+'/'+ ratio +'/test_loss_'+temp+'_'+str(temperature)+'_'+str(seed)+'_'+str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
-            #     pickle.dump(overall_test_loss, fp)
-            # with open('./log/'+dataset+'/'+ ratio +'/pred_traj'+temp+'_'+str(temperature)+'_'+str(seed)+'_'+str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
-            #     pickle.dump(overall_pred_traj, fp)
-            # with open('./log/'+dataset+'/'+ ratio +'/mask_traj'+temp+'_'+str(temperature)+'_'+str(seed)+'_'+str(num_layers)+'_'+str(active_iter)+'.pkl', "wb") as fp:
-            #     pickle.dump(overall_mask_traj, fp)
-            # print('The step for saving is', active_iter)
             return parsed_data, best_ensemble_list
+
+
+def get_mtg_model(testing, save_path_pre, dataset, gpu_id, step,
+                  end_num, ensemble_num, seed):
+    # 尝试读取已有模型
+    if testing:
+        parsed_data = load_parsed_data(path_pre=save_path_pre, dataset=dataset, device='cuda' + gpu_id, step=step)
+        mtg_ensemble_model = load_models(path_pre=save_path_pre, dataset=dataset, device='cuda' + gpu_id,
+                                         end_num=end_num, ensemble_num=ensemble_num, gpu_id=gpu_id)
+
+    # 用gain_collection训练MTG-net, 保存模型和数据集
+    if (not testing) or parsed_data is None or mtg_ensemble_model is None:
+        trained_parsed_data, trained_mtg_ensemble_model = mtg_training(
+            dataset=dataset, ratio='1', temperature=0.00001,
+            num_layers=2, num_hidden=128, ensemble_num=ensemble_num,
+            gpu_id=gpu_id, step=step, end_num=end_num, seed=seed,
+            strategy='active', dropout_rate=0.5)
+        if parsed_data is None:
+            save_parsed_data(
+                path_pre=save_path_pre, parsed_data=trained_parsed_data, dataset=dataset,
+                device='cuda' + gpu_id, step=step)
+        if mtg_ensemble_model is None:
+            save_models(
+                path_pre=save_path_pre, models=trained_mtg_ensemble_model,
+                dataset=dataset, device='cuda' + gpu_id, end_num=end_num)
+        parsed_data = trained_parsed_data
+        mtg_ensemble_model = trained_mtg_ensemble_model
+
+    return parsed_data, mtg_ensemble_model

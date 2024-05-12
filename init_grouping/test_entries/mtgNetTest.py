@@ -3,9 +3,8 @@ import numpy as np
 import torch
 import argparse
 
-from init_grouping.utils.dataParse import ParsedDataset
 from init_grouping.process.trainEvalTest import mtg_training
-from init_grouping.utils.fileMgmt import save_models, save_parsed_data
+from utils.fileMgmt import save_models, save_parsed_data
 
 
 def get_args():

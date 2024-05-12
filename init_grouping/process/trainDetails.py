@@ -2,7 +2,7 @@ import torch
 import copy
 import numpy as np
 
-from init_grouping.utils.dataParse import data_slice, ParsedDataset
+from utils.dataParse import data_slice, ParsedDataset
 
 
 def train_one_batch(model: torch.nn.Module, optimizer: torch.optim.Optimizer, criterion, parsed_data: ParsedDataset, batch: int, batch_size: int):

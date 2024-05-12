@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from init_grouping.model.layerDef import TransformerLayer
+from init_grouping.mtg_net.layerDef import TransformerLayer
 
 
 class HOINetTransformer(nn.Module):
