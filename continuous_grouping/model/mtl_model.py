@@ -34,6 +34,7 @@ class MTL_model(torch.nn.Module):
         self.heads = []
         self.head_names = []
         self.out_features = out_features
+        self.member = member
         for i in member:
             head, head_name = build_head(task_id=i, in_size=self.backbone.out_channels, out_size=out_features[i])
             self.heads.append(head)
@@ -45,3 +46,7 @@ class MTL_model(torch.nn.Module):
         for head in self.heads:
             out_list.append(head(out))
         return out_list
+
+    def get_little_model(self, no):
+        # TODO: get a masked sub-net for specific cv_task, which is smaller and one-headed
+        pass

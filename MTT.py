@@ -1,11 +1,14 @@
+import multiprocessing
+
+from continuous_grouping.process.MtlDataParse import get_mtl_datasets
+from distributed_running.worker import worker
 from init_grouping.process.trainEvalTest import train_mtg_model
 from init_grouping.process.beamSearch import mtg_beam_search
 from continuous_grouping.process.mtlModelGen import get_models
-from utils.modelPruner import Pruner
 from utils.argParse import get_args, str2list
-from continuous_grouping.process.pruneMtl import prune, mtl_train
 from continuous_grouping.process.lut import init_tasks_info
-
+from continuous_grouping.train_task_mgmt.trainTask import TrainTask
+from continuous_grouping.train_task_mgmt.trainMgmt import train_manager
 global testing
 
 
@@ -14,21 +17,33 @@ if __name__ == '__main__':
     testing = True if args.testing == '1' else False
     gpu_id = args.gpu_id
     seed = args.seed
+    mtg_dataset = 'mimic27'
+    step = 1
     mtg_ensemble_size = args.mtg_ensemble_size
     mtg_end_num = args.mtg_end_num
     mtg_beam_width = args.beam_width
     save_path_pre = args.save_path_pre
-    remain_percent = args.remain_percent
-    max_pruning_iter = args.max_pruning_iter
     init_masks = args.init_masks
-    need_cut = args.need_cut
 
     # build mtl dataset and models
     mtl_dataset_name = args.mtl_dataset_name
     mtl_backbone_name = args.mtl_backbone_name
     mtl_out_features = args.mtl_out_features
-    mtg_dataset = 'mimic27'
-    step = 1
+
+    # mtl training management
+    max_queue_lvl = args.max_queue_lvl
+    trainer_num = args.trainer_num
+
+    # mtl warmup
+    warmup_iter = args.warmup_iter
+
+    # single task pruning
+    prune_names = str2list(args.need_cut, conj=',')
+    prune_remain_percent = args.prune_remain_percent
+    max_prune_iter = args.max_prune_iter
+    max_mtl_iter = args.max_mtl_iter
+
+
 
     print('extract mtg model and data set (re-train and re-parse if not ready to use)')
     # TODO:两两训练得出gain_collection(少训练几轮,用loss斜率判断最终loss会到达哪里)
@@ -43,15 +58,59 @@ if __name__ == '__main__':
     # 获取多任务信息
     task_info_list = init_tasks_info(mtl_dataset_name)
     mtl_datasets = get_mtl_datasets(mtl_dataset_name)
+    assert len(task_info_list) == len(mtl_datasets)
     for task_info_i, mtl_dataset_j in task_info_list, mtl_datasets:
         task_info_i.load_dataset(mtl_dataset_j)
 
     # 建立分组稀疏参数共享模型
     models = get_models(grouping=init_grouping, backbone_name=mtl_backbone_name, out_features=mtl_out_features)
+    # TODO: 检查model.train()了吗
 
-    # TODO:sparseSharing的学习方式:1)单任务模型结构学习;2)多任务学习
-    pruner = Pruner(model=model, prune_names=str2list(need_cut, conj=','), remain_percent=remain_percent, max_pruning_iter=max_pruning_iter)
-    prune(model=model, pruner=pruner)
-    mtl_train(model=model)
+    # 启动训练管家进程
+    queue_to_train_manager = multiprocessing.Queue()
+    queue_from_train_manager = multiprocessing.Queue()
+    train_manager = multiprocessing.Process(target=train_manager, args=(max_queue_lvl, trainer_num, queue_to_train_manager, queue_from_train_manager))
+    train_manager.start()
 
-    # TODO: (异步)监控任务表现,若有loss飘升,将该任务编号投入重训练队列
+    # TODO: 多任务预热
+    for i in range(len(models)):
+        warmup_args = {}
+        warmup_task = TrainTask(model=models[i], cv_tasks=[task_info_list[i] for i in models[i].member], max_epoch=warmup_iter, train_type="mtl_train")
+        queue_to_train_manager.put(warmup_task)
+    for i in range(len(models)):
+        _ = queue_from_train_manager.get()
+        # TODO: get回来点啥
+
+    # TODO: 单任务子模型剪枝
+    for i in range(len(task_info_list)):
+        prune_args = {"prune_names": prune_names, 'prune_remain_percent': prune_remain_percent}
+        prune_task = TrainTask(model=models[init_grouping[i] - 1], cv_tasks=[task_info_list[i]], max_epoch=max_prune_iter, train_type="single_task_prune", args=prune_args)
+        queue_to_train_manager.put(prune_task)
+    for i in range(len(task_info_list)):
+        _ = queue_from_train_manager.get()
+        # TODO: get回来点啥
+
+    # TODO: 多任务同步训练
+    for i in range(len(models)):
+        mtl_args = {}
+        mtl_task = TrainTask(model=models[i], cv_tasks=[task_info_list[i] for i in models[i].member], max_epoch=max_mtl_iter, train_type="mtl_train")
+        queue_to_train_manager.put(mtl_task)
+    for i in range(len(models)):
+        _ = queue_from_train_manager.get()
+        # TODO: get回来点啥
+
+    queue_from_workers = multiprocessing.Queue()
+    queue_to_worker = []
+    workers = []
+    for i in range(len(task_info_list)):
+        queue_to_worker.append(multiprocessing.Queue())
+        little_model = models[init_grouping[i] - 1].get_little_model()
+        workers.append(multiprocessing.Process(target=worker, args=(queue_to_worker, queue_from_workers)))
+        workers[i].start()
+    while True:
+        if not queue_from_workers.empty():
+            new_retrain_request = queue_from_workers.get()
+            # TODO: deal with retrain request, send it to manager
+        if not queue_from_train_manager.empty():
+            new_ready_signal = queue_from_train_manager.get()
+            # TODO: deal with ready signal, send the new model to worker
