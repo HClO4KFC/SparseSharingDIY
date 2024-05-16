@@ -195,8 +195,8 @@ def mtg_training(dataset, ratio, temperature,
             return parsed_data, best_ensemble_list
 
 
-def get_mtg_model(testing, save_path_pre, dataset, gpu_id, step,
-                  end_num, ensemble_num, seed):
+def train_mtg_model(testing, save_path_pre, dataset, gpu_id, step,
+                    end_num, ensemble_num, seed):
     # 尝试读取已有模型
     if testing:
         parsed_data = load_parsed_data(path_pre=save_path_pre, dataset=dataset, device='cuda' + gpu_id, step=step)
