@@ -3,32 +3,22 @@ import multiprocessing
 import torch.nn
 
 from continuous_grouping.train_task_mgmt.trainTask import TrainTask
-from utils.lut import CvTask
+from utils.lut import CvTask, get_batch_size
 
 
-def update_model(new_model_pack):
-    # TODO: update the sub model of this very task
+def sense_raw_data(cv_task:CvTask):
+    return cv_task.get_next_batch(get_batch_size(cv_task, 'regular running'))
     pass
-
-
-def sense_raw_data():
-    # TODO: like the behavior of a camera, which take picture with its sensors to further analyse it through the sub model
-    pass
-
-
-def parse_raw_data(sensor_data):
-    # TODO:parse the raw frames into the same layout as model input
-    return sensor_data
 
 
 def accept(access_result):
-    # TODO:decide whether to accept the bias of this sub model
-    pass
+    # decide whether to accept the bias of this sub model
+    return access_result
 
 
 def assess(out):
-    # TODO:some forms of analytical methods to show if the model is precise
-    pass
+    # some forms of analytical methods to show if the model is precise
+    return 1
 
 
 def worker(model: torch.nn.Module, max_patience: int, cv_task: CvTask, retrain_max_epoch: int,
@@ -37,10 +27,10 @@ def worker(model: torch.nn.Module, max_patience: int, cv_task: CvTask, retrain_m
     model.eval()
     while True:
         if not queue_from_main.empty():
-            new_model_pack = queue_from_main.get()
-            update_model(new_model_pack)
+            new_model = queue_from_main.get()
+            model = new_model
             print("model for task no." + str(cv_task.no) + " is updated.")
-        data = parse_raw_data(sense_raw_data())
+        data = sense_raw_data()
         out = model(data)
         if not accept(assess(out)):
             patience += 1

@@ -60,8 +60,7 @@ class HOINetTransformer(nn.Module):
             output, attention = encoder(output, inputs)
             pass_mask = torch.ones(len(inputs[0])).to('cuda:0')  # 测试输出不需要注意力屏蔽
             test_output, test_attention = encoder(test_output[0].unsqueeze(0), pass_mask)
-            attentions.append(attention)  # TODO:存它干嘛?
-        # TODO:先看训练过程吧
+            attentions.append(attention)
         task_embedding = self.task_embedding(index)[0]
         encoder_output = output  # 返回值之二
         output = self.final_output(output)

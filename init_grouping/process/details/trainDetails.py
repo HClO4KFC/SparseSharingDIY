@@ -17,13 +17,13 @@ def train_one_batch(model: torch.nn.Module, optimizer: torch.optim.Optimizer, cr
     output, attentions, task_embedding, encoder_output = model(batch_x, task_id_batch)
     # 输入是一批x,形状为(size, 27), 及每组标号(也是(size, 27)此处每行都是0-26,只是为了格式化输入)
     # output: 模型输出,即为train完了这步后的y^, 形状为(size, 27)
-    # attentions: 注意力权重 TODO: 不知道干嘛用
+    # attentions: 注意力权重
     # task_embedding: 该次循环时27个任务的编码(由于是动态图,编码随着训练进程会变化)
     #   形状为(27, 128''), 因为每行都一样所以只取第0行
     # encoder_output: 该批次中,经过公共encoder层后的输出,形状为(size, 27, 128)
 
     # 将编码器输出与分组方案(1001...11)相乘,也就是不在分组方案内的任务不重要,乘0以滤除影响
-    encoder_output = torch.mul(encoder_output.permute(2, 0, 1), batch_x).permute(1, 2, 0)  # TODO:保存这个干嘛
+    encoder_output = torch.mul(encoder_output.permute(2, 0, 1), batch_x).permute(1, 2, 0)
 
     # 保存最后一轮iter中的encoder_output和task_embedding信息
     # if is_last_iter:

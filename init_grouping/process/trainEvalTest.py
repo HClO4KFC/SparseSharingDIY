@@ -66,7 +66,7 @@ def mtg_training(dataset, ratio, temperature,
     criterion = torch.nn.L1Loss()  # 损失函数为各维度绝对差值的平均
     ensemble_capacity = ensemble_num
     max_patience = 5  # 若loss在连续这么多epoch内没有降低,则停止iter
-    active_iter_num = 1000000  # TODO:为什么这么大
+    active_iter_num = 1000000
 
     # 进行数个训练iter,每个iter产生一个集成模型,进行一轮train-eval-test,使用一遍所有数据
     for active_iter in range(active_iter_num):

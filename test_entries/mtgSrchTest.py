@@ -32,8 +32,6 @@ if __name__ == '__main__':
     mtg_dataset = 'mimic27'
     step = 1
 
-    # TODO:两两训练得出gain_collection(少训练几轮,用loss斜率判断最终loss会到达哪里)
-
     # 测试时尝试读取已有模型
     parsed_data = load_parsed_data(path_pre=save_path_pre, dataset=mtg_dataset, device='cuda'+gpu_id, step=step)
     mtg_ensemble_model = load_models(path_pre=save_path_pre, dataset=mtg_dataset, device='cuda'+gpu_id,
@@ -57,6 +55,3 @@ if __name__ == '__main__':
     print('finish the init_grouping with beam-search method...')
     init_grouping = mtg_beam_search(parsed_data, mtg_ensemble_model, 'cuda:' + gpu_id, mtg_beam_width)
 
-    # TODO: 建立分组稀疏参数共享模型(读adashare, sparseSharing)
-
-    # TODO: (异步)监控任务表现,若有loss飘升,将该任务编号投入重训练队列

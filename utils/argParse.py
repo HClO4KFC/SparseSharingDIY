@@ -20,7 +20,8 @@ def get_args():
     # MTL models define
     parser.add_argument('--mtl_dataset_name', type=str, default='nyu_v2')
     parser.add_argument('--mtl_backbone_name', type=str, default='ResNet34')
-    parser.add_argument('--out_features', type=str, default='')  # TODO: figure out the out-put shape of each task in taskonomy, nyu_v2, DomainNet and cityscapes
+    parser.add_argument('--out_features', type=str, default='')
+    # TODO: figure out the out-put shape of each task in taskonomy, nyu_v2, DomainNet and cityscapes
 
     # single-task pruning
     parser.add_argument("--remain_percent", dest='remain_percent', type=float, default=0.1, help='percent of params to remain not to pruning')

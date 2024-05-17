@@ -16,13 +16,15 @@ class TrainQueue():
         # 从优先级最高的队列上取出最早入队的任务
         for i in range(len(self.train_queues) - 1, -1):
             if len(self.train_queues[i]) == 0:
-                    del self.train_queues[i]
+                del self.train_queues[i]
             else:
-                ans = self.train_queues[i][0]
-                # del self.train_queues[i][0]  # trainQueue需要在训练时持续接收训练任务并与队列
-                # 中的已有任务合并,因此正在运行的任务仅将其stage设为'solving',但并不删除
-                # 直到该训练彻底结束,训练结果更新到小模型为止
-                return ans
+                for j in range(len(self.train_queues[i])):
+                    if self.train_queues[i][j].stage == 'waiting':
+                        ans = self.train_queues[i][j]
+                        # del self.train_queues[i][0]  # trainQueue需要在训练时持续接收训练任务并与队列
+                        # 中的已有任务合并,因此正在运行的任务仅将其stage设为'solving',但并不删除
+                        # 直到该训练彻底结束,训练结果更新到小模型为止
+                        return ans
         # 不论列表是否为空,总应返回训练任务或闲时任务,不应该执行到这里
         assert False
 
@@ -33,7 +35,7 @@ class TrainQueue():
                     return task
         return None
 
-    def enqueue(self, train_task:TrainTask):
+    def enqueue(self, train_task: TrainTask):
         task = self.look_up(train_task)
         if isinstance(task, TrainTask):
             # 若对应任务已经在队列中,使其忍耐(tolerate),忍不了就将它调入高级队列;
@@ -49,4 +51,3 @@ class TrainQueue():
             while len(self.train_queues) - 1 < train_task.queue_lvl:
                 self.train_queues.append([])
             self.train_queues[train_task.queue_lvl].append(train_task)
-
