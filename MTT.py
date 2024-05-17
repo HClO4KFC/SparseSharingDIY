@@ -1,14 +1,14 @@
 import multiprocessing
 
-from continuous_grouping.process.MtlDataParse import get_mtl_datasets
-from distributed_running.worker import worker
+from init_grouping.data_parsing.MtlDataParse import get_mtl_datasets
+from continuous_grouping.processes.worker import worker
 from init_grouping.process.trainEvalTest import train_mtg_model
 from init_grouping.process.beamSearch import mtg_beam_search
-from continuous_grouping.process.mtlModelGen import get_models
+from init_grouping.process.details.mtlDetails import get_models
 from utils.argParse import get_args, str2list
-from continuous_grouping.process.lut import init_tasks_info
+from utils.lut import init_tasks_info
 from continuous_grouping.train_task_mgmt.trainTask import TrainTask
-from continuous_grouping.train_task_mgmt.trainMgmt import train_manager
+from continuous_grouping.processes.trainManager import train_manager
 global testing
 
 
@@ -42,8 +42,11 @@ if __name__ == '__main__':
     prune_remain_percent = args.prune_remain_percent
     max_prune_iter = args.max_prune_iter
     max_mtl_iter = args.max_mtl_iter
+    prune_decrease_percent = args.prune_decrease_percent
 
-
+    # continuous running
+    max_worker_patience = args.max_worker_patience
+    max_retrain_iter = args.max_retrain_iter
 
     print('extract mtg model and data set (re-train and re-parse if not ready to use)')
     # TODO:两两训练得出gain_collection(少训练几轮,用loss斜率判断最终loss会到达哪里)
@@ -63,8 +66,8 @@ if __name__ == '__main__':
         task_info_i.load_dataset(mtl_dataset_j)
 
     # 建立分组稀疏参数共享模型
-    models = get_models(grouping=init_grouping, backbone_name=mtl_backbone_name, out_features=mtl_out_features)
-    # TODO: 检查model.train()了吗
+    models = get_models(grouping=init_grouping, backbone_name=mtl_backbone_name, out_features=mtl_out_features, prune_names=prune_names)
+    # Q: 检查model.train()了吗 A: 在trainer中进行train()和eval()
 
     # 启动训练管家进程
     queue_to_train_manager = multiprocessing.Queue()
@@ -75,7 +78,7 @@ if __name__ == '__main__':
     # TODO: 多任务预热
     for i in range(len(models)):
         warmup_args = {}
-        warmup_task = TrainTask(model=models[i], cv_tasks=[task_info_list[i] for i in models[i].member], max_epoch=warmup_iter, train_type="mtl_train")
+        warmup_task = TrainTask(model=models[i], cv_tasks=[task_info_list[i] for i in models[i].member], max_epoch=warmup_iter, train_type="multi_task_warmup", args=warmup_args)
         queue_to_train_manager.put(warmup_task)
     for i in range(len(models)):
         _ = queue_from_train_manager.get()
@@ -83,7 +86,7 @@ if __name__ == '__main__':
 
     # TODO: 单任务子模型剪枝
     for i in range(len(task_info_list)):
-        prune_args = {"prune_names": prune_names, 'prune_remain_percent': prune_remain_percent}
+        prune_args = {'prune_remain_percent': prune_remain_percent, 'prune_decrease_percent': prune_decrease_percent}
         prune_task = TrainTask(model=models[init_grouping[i] - 1], cv_tasks=[task_info_list[i]], max_epoch=max_prune_iter, train_type="single_task_prune", args=prune_args)
         queue_to_train_manager.put(prune_task)
     for i in range(len(task_info_list)):
@@ -92,20 +95,24 @@ if __name__ == '__main__':
 
     # TODO: 多任务同步训练
     for i in range(len(models)):
-        mtl_args = {}
-        mtl_task = TrainTask(model=models[i], cv_tasks=[task_info_list[i] for i in models[i].member], max_epoch=max_mtl_iter, train_type="mtl_train")
+        mtt_args = {}
+        mtl_task = TrainTask(model=models[i], cv_tasks=[task_info_list[i] for i in models[i].member], max_epoch=max_mtl_iter, train_type="multi_task_train", args=mtt_args)
         queue_to_train_manager.put(mtl_task)
     for i in range(len(models)):
         _ = queue_from_train_manager.get()
         # TODO: get回来点啥
 
+    # 开始持续演化,进程图worker(s)<---->main<---->train_manager<---->trainer(s)
     queue_from_workers = multiprocessing.Queue()
     queue_to_worker = []
     workers = []
     for i in range(len(task_info_list)):
         queue_to_worker.append(multiprocessing.Queue())
-        little_model = models[init_grouping[i] - 1].get_little_model()
-        workers.append(multiprocessing.Process(target=worker, args=(queue_to_worker, queue_from_workers)))
+        sub_model = models[init_grouping[i] - 1].get_sub_model()
+        workers.append(multiprocessing.Process(
+            target=worker,
+            args=(sub_model, max_worker_patience, task_info_list[i],
+                  max_retrain_iter, queue_to_worker, queue_from_workers)))
         workers[i].start()
     while True:
         if not queue_from_workers.empty():

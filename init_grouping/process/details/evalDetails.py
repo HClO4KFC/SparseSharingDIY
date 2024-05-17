@@ -1,6 +1,6 @@
 import torch
 
-from utils.dataParse import ParsedDataset, data_slice
+from init_grouping.data_parsing.mtgDataParse import ParsedDataset, data_slice
 
 
 def eval_and_test(ensemble_list: list, parsed_data: ParsedDataset,

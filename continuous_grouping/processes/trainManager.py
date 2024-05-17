@@ -1,8 +1,7 @@
 import multiprocessing
 
 from continuous_grouping.train_task_mgmt.trainQueue import TrainQueue
-from continuous_grouping.train_task_mgmt.trainTask import TrainTask
-from continuous_grouping.train_task_mgmt.trainer import trainer
+from continuous_grouping.processes.trainer import trainer
 
 
 def train_manager(max_queue_lvl:int, trainer_num:int, queue_from_main:multiprocessing.Queue, queue_to_main:multiprocessing.Queue):

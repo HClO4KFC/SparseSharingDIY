@@ -1,10 +1,10 @@
 import numpy as np
 import torch
 
-from utils.dataParse import data_parse, data_shuffle, ParsedDataset
-from init_grouping.mtg_net.netDef import HOINetTransformer
-from init_grouping.process.trainDetails import train_base, update_ensemble
-from init_grouping.process.evalDetails import eval_and_test
+from init_grouping.data_parsing.mtgDataParse import data_parse, data_shuffle, ParsedDataset
+from init_grouping.model.mtg_net.transformer import HOINetTransformer
+from init_grouping.process.details.trainDetails import train_base, update_ensemble
+from init_grouping.process.details.evalDetails import eval_and_test
 from utils.fileMgmt import load_parsed_data, load_models, save_models, save_parsed_data
 
 
