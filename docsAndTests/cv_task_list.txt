@@ -1,0 +1,26 @@
+除雨
+单目深度估计
+模拟右眼
+人物识别
+3d车辆识别
+实例分割
+语义分割
+综合语义分割
+目标检测
+
+需要的集合:
+# 原图
+左眼:leftImg8bit/t+v/**/aachen_000000_000019_leftImg8bit.png
+右眼:rightImg8bit/t+v/**/aachen_000000_000019_rightImg8bit.png
+雨天左眼:leftImg8bit_trainval_rain/t+v/**/*_?(未完成下载)
+深度:disparity/t+v/**/aachen_000000_000019_disparity.png
+
+# 提取标签
+实例标签:gtFine/t+v/**/aachen_000000_000019_gtFine_instanceIds.png
+分类标签:gtFine/t+v/**/aachen_000000_000019_gtFine_labelIds.png
+综合标签:fine_panoptic/t+v/**/aachen_000000_000019_gtFine_panoptic.png
+
+#json
+人物标注:gtBbox_cityPersons_trainval/t+v/**/aachen_000000_000019_gtBboxCityPersons.json
+3d车辆标注:gtBbox3d_trainvaltest/t+v/**/aachen_000000_000019_gtBbox3d.json
+

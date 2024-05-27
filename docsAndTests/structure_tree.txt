@@ -1,0 +1,35 @@
+init_structure:
+	mtg_net:
+		attention.py
+		transformer.py
+
+	datasets:
+		cityscapes:
+			prepareObjDetection.py
+		dataLoader.py
+	beamSearch.py
+	taskRank.py(TODO)
+	bootMtgTraining.py
+continuous_sharing:
+	?
+drift_management:
+	async_proc:
+		worker.py
+		trainer.py
+		manager.py
+	runOnline.py(TODO)
+model:
+	heads.py(TODO)
+	resNet.py
+	mtlModel.py
+yamls:
+	default.yaml
+utils:
+	arg_parse.py
+	errReport.py
+	lut.py
+poor_old_things:
+	...
+MTT.py
+errReport.py
+argParse.py
