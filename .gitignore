@@ -6,3 +6,4 @@ log/
 save/
 test_files/
 dataset/
+*_backup/

@@ -1,90 +1,105 @@
 import multiprocessing
+import omegaconf
+import numpy as np
+import torch
 
-from init_grouping.data_parsing.MtlDataParse import get_mtl_datasets
-from continuous_grouping.processes.workerProc import worker
-from init_grouping.model.mtl_net.mtlModel import SubModel
-from init_grouping.process.trainEvalTest import train_mtg_model
-from init_grouping.process.beamSearch import mtg_beam_search
-from init_grouping.process.details.mtlDetails import get_models
-from utils.argParse import get_args, str2list
+from s1_init_structure.datasets.dataLoader import MultiDataset
+from s1_init_structure.taskRank import mtg_task_rank
+from s3_drift_mgmt.async_proc.workerProc import worker
+from model.mtlModel import SubModel
+from s1_init_structure.bootMtgTraining import mtg_active_learning
+from s1_init_structure.beamSearch import mtg_beam_search
+from poor_old_things.details.mtlDetails import get_models
 from utils.errReport import CustomError
-from utils.lut import init_tasks_info
-from continuous_grouping.train_task_mgmt.trainTask import TrainTask
-from continuous_grouping.processes.trainManagerProc import train_manager
+from s2_continuous_sharing.train_task_mgmt.trainTask import TrainTask
+from s3_drift_mgmt.async_proc.trainManagerProc import train_manager
+from utils.lut import CvTask
+from torchvision import transforms
 
 global testing
 
 if __name__ == '__main__':
-    args = get_args()
-    testing = True if args.testing == '1' else False
-    gpu_id = args.gpu_id
-    seed = args.seed
-    mtg_dataset = 'mimic27'
-    step = 1
-    mtg_ensemble_size = args.mtg_ensemble_size
-    mtg_end_num = args.mtg_end_num
-    mtg_beam_width = args.beam_width
-    save_path_pre = args.save_path_pre
-    init_masks = args.init_masks
+    # args = get_args()
+    args = omegaconf.OmegaConf.load('yamls/default.yaml')
+    basic_args = args.basic_args
+    dataset_args = args.dataset_args
+    mtgnet_args = args.mtgnet_args
+    init_grp_args = args.init_grp_args
+    beam_search_args = args.beam_search_args
+    mtl_design_args = args.mtl_design_args
+    single_prune_args = args.single_prune_args
+    multi_train_args = args.multi_train_args
+    mgmt_args = args.mgmt_args
+    temp_args = args.temp_args
+    cv_tasks_args = args.cv_tasks_args
+    cv_subsets_args = args.cv_subsets_args
 
-    # build mtl dataset and models
-    mtl_dataset_name = args.mtl_dataset_name
-    mtl_backbone_name = args.mtl_backbone_name
-    mtl_out_features = args.mtl_out_features
+    # fix the seed
+    np.random.seed(basic_args.seed)
+    torch.manual_seed(basic_args.seed)
+    torch.cuda.manual_seed_all(basic_args.seed)
 
-    # mtl training management
-    max_queue_lvl = args.max_queue_lvl
-    trainer_num = args.trainer_num
+    # cal basic info
+    task_num = len(cv_tasks_args)
 
-    # mtl warmup
-    warmup_iter = args.warmup_iter
-
-    # single task pruning
-    prune_names = str2list(args.need_cut, conj=',')
-    prune_remain_percent = args.prune_remain_percent
-    max_prune_iter = args.max_prune_iter
-    max_mtl_iter = args.max_mtl_iter
-    prune_decrease_percent = args.prune_decrease_percent
-
-    # continuous running
-    max_worker_patience = args.max_worker_patience
-    max_retrain_iter = args.max_retrain_iter
-    max_reprune_epoch = args.max_reprune_epoch
+    # 初始化任务描述(内置单任务数据集和加载器)
+    task_info_list = [CvTask(no=i, dataset_args=dataset_args,
+                             cv_task_arg=cv_tasks_args[i],
+                             cv_subsets_args=cv_subsets_args)
+                      for i in range(task_num)]
 
     print('extract mtg model and data set (re-train and re-parse if not ready to use)')
-    # TODO:两两训练得出gain_collection(少训练几轮,用loss斜率判断最终loss会到达哪里)
-    parsed_data, mtg_ensemble_model = train_mtg_model(
-        testing, save_path_pre, mtg_dataset, gpu_id, step,
-        mtg_end_num, mtg_ensemble_size, seed)
+    # 阶段1: 多任务模型构建
+    # 准备多任务数据集
+    multi_train_dataset = MultiDataset(
+        dataset=dataset_args.dataset_name, path_pre=dataset_args.path_pre,
+        cv_tasks_args=cv_tasks_args, cv_subsets_args=cv_subsets_args,
+        train_val_test='train', transform=transforms.Compose([transforms.ToTensor()]))
+    multi_val_dataset = MultiDataset(
+        dataset=dataset_args.dataset_name, path_pre=dataset_args.path_pre,
+        cv_tasks_args=cv_tasks_args, cv_subsets_args=cv_subsets_args,
+        train_val_test='val', transform=transforms.Compose([transforms.ToTensor()]))
+    # 元数据集标注+元学习模型mtg-net训练(主动学习策略)
+    parsed_data, model = mtg_active_learning(
+        multi_train_dataset=multi_train_dataset,
+        init_grp_args=init_grp_args,
+        mtgnet_args=mtgnet_args,
+        dataset_name=dataset_args.dataset_name,
+        gpu_id=basic_args.gpu_id,
+        backbone=mtl_design_args.backbone,
+        out_features=temp_args.out_features,
+        task_info_list=task_info_list,
+        cv_task_args=cv_tasks_args)
 
-    # 根据MTG-net确定初始共享组的划分(小规模:枚举;大规模:波束搜索beam-search)
+    # 波束搜索确定共享组的划分
     print('finish the init_grouping with beam-search method...')
-    init_grouping = mtg_beam_search(parsed_data, mtg_ensemble_model, 'cuda:' + gpu_id, mtg_beam_width)
+    init_grouping = mtg_beam_search(
+        task_num=task_num, mtg_model=model,
+        device='cuda:' + basic_args.gpu_id, beam_width=beam_search_args.beam_width)
 
-    # 获取多任务信息
-    task_info_list = init_tasks_info(mtl_dataset_name)
-    mtl_datasets = get_mtl_datasets(mtl_dataset_name)
-    assert len(task_info_list) == len(mtl_datasets)
-    for task_info_i, mtl_dataset_j in task_info_list, mtl_datasets:
-        task_info_i.load_dataset(mtl_dataset_j)
+    # TODO:pagerank获得任务重要性
+    task_rank = mtg_task_rank(
+        task_num=task_num, mtg_model=model,
+        device='cuda:' + basic_args.gpu_id
+    )
 
-    # 建立分组稀疏参数共享模型
-    models = get_models(grouping=init_grouping, backbone_name=mtl_backbone_name, out_features=mtl_out_features,
-                        prune_names=prune_names)
+    # 初始化参数共享模型(掩膜全通,为硬参数共享)
+    models = get_models(grouping=init_grouping, backbone_name=mtl_design_args.backbone,
+                        prune_names=single_prune_args.need_cut, out_features=temp_args.out_features)
     # Q: 检查model.train()了吗 A: 在trainer中进行train()和eval()
 
     # 启动训练管家进程
     queue_to_train_manager = multiprocessing.Queue()
     queue_from_train_manager = multiprocessing.Queue()
     train_manager = multiprocessing.Process(target=train_manager, args=(
-    max_queue_lvl, trainer_num, queue_to_train_manager, queue_from_train_manager))
+        mgmt_args.max_queue_lvl, mgmt_args.trainer_num, queue_to_train_manager, queue_from_train_manager))
     train_manager.start()
 
     # 多任务预热
     for i in range(len(models)):
         warmup_args = {}
         warmup_task = TrainTask(model=models[i], cv_tasks=[task_info_list[i] for i in models[i].member],
-                                max_epoch=warmup_iter, train_type="multi_task_warmup", args=warmup_args)
+                                max_epoch=temp_args.warmup_iter, train_type="multi_task_warmup", args=warmup_args)
         queue_to_train_manager.put(warmup_task)
     for i in range(len(models)):
         finished_task = queue_from_train_manager.get()
@@ -93,9 +108,9 @@ if __name__ == '__main__':
 
     # 单任务子模型剪枝
     for i in range(len(task_info_list)):
-        prune_args = {'prune_remain_percent': prune_remain_percent, 'prune_decrease_percent': prune_decrease_percent}
+        prune_args = {'prune_remain_percent': 1-single_prune_args.dec_percent, 'prune_decrease_percent': single_prune_args.dec_percent}
         prune_task = TrainTask(model=models[init_grouping[i] - 1], cv_tasks=[task_info_list[i]],
-                               max_epoch=max_prune_iter, train_type="single_task_prune", args=prune_args)
+                               max_epoch=single_prune_args.max_iter, train_type="single_task_prune", args=prune_args)
         queue_to_train_manager.put(prune_task)
     for i in range(len(task_info_list)):
         finished_task = queue_from_train_manager.get()
@@ -106,7 +121,7 @@ if __name__ == '__main__':
     for i in range(len(models)):
         mtt_args = {}
         mtl_task = TrainTask(model=models[i], cv_tasks=[task_info_list[i] for i in models[i].member],
-                             max_epoch=max_mtl_iter, train_type="multi_task_train", args=mtt_args)
+                             max_epoch=multi_train_args.max_iter, train_type="multi_task_train", args=mtt_args)
         queue_to_train_manager.put(mtl_task)
     for i in range(len(models)):
         finished_task = queue_from_train_manager.get()
@@ -125,8 +140,8 @@ if __name__ == '__main__':
         sub_model = SubModel(model=models, ingroup_no=ingroup_no)
         workers.append(multiprocessing.Process(
             target=worker,
-            args=(sub_model, max_worker_patience, task_info_list[i],
-                  max_retrain_iter, queue_to_worker, queue_from_workers)))
+            args=(sub_model, mgmt_args.worker_patience, task_info_list[i],
+                  multi_train_args.max_iter, queue_to_worker, queue_from_workers)))
         workers[i].start()
         error_count.append(0)
     while True:
@@ -141,7 +156,8 @@ if __name__ == '__main__':
             group_no = init_grouping[task_id]
             if bias_grade == 0:  # 分组不变, 重算mask
                 retrain_args = {'task_id': task_id, 'biased_sample': biased_sample}
-                retrain_task = TrainTask(model=models[group_no], cv_tasks=task_id, max_epoch=max_reprune_epoch,
+                retrain_task = TrainTask(model=models[group_no], cv_tasks=task_id,
+                                         max_epoch=single_prune_args.max_iter,
                                          train_type='reprune', args=retrain_args)
                 queue_to_train_manager.put(retrain_task)
             # elif ... 其他粒度的重训练策略
