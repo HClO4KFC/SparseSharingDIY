@@ -1,7 +1,7 @@
 import multiprocessing
 
 from s3_drift_mgmt.async_proc import trainerProc
-from s2_continuous_sharing.train_task_mgmt.trainQueue import TrainQueue
+from s3_drift_mgmt.train_task_mgmt.trainQueue import TrainQueue
 
 
 def train_manager(max_queue_lvl:int, trainer_num:int, queue_from_main:multiprocessing.Queue, queue_to_main:multiprocessing.Queue):

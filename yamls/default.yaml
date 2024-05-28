@@ -26,6 +26,11 @@ init_grp_args: # arguments for initial grouping
 beam_search_args:
   beam_width: 20 #
 
+task_rank_args:
+  max_iter: 2000 #
+  rand_jump_rate: 0.15
+  converge_tolerance: 0.000001
+
 mtl_design_args:
   backbone: 'ResNet50'
 
@@ -33,9 +38,19 @@ single_prune_args:
   need_cut: 'lstm,conv'
   dec_percent: 5
   max_iter: 10 #
+  batch_per_iter: 2 #
+  least_percent: 50 #
 
 multi_train_args:
   max_iter: 1000 #
+  warmup_percent: 30
+
+err_detect_args:
+  acc_threshold: 1 #
+  err_patience: 100 #
+  retrain_over_percent: 80 #
+  regroup_beneath_percent: 20 #
+  runtime_dataset_size: 1000 #
 
 mgmt_args:
   max_queue_lvl: 5
@@ -53,7 +68,8 @@ cv_tasks_args:
       input: 'left',
       output: 'disparity',
       scale_factor: '',  #
-      upsample_mode: 'linear'
+      upsample_mode: 'linear',
+      distribute_to: 4
       # 'nearest'最临近插值, linear线性插值,
       # bilinear双线性插值, bicubic双三次插值
       # trilinear双三次插值,area区域插值
@@ -61,37 +77,44 @@ cv_tasks_args:
   - {
       name: 'genRightCam',
       input: 'left',
-      output: 'right'
+      output: 'right',
+      distribute_to: 4
   }
   - {
       name: 'detPeople',
       input: 'left',
-      output: 'people'
+      output: 'people',
+      distribute_to: 1
   }
   - {
       name: 'detCars',
       input: 'left',
-      output: 'car'
+      output: 'car',
+      distribute_to: 1
   }
   - {
       name: 'detObjs',
       input: 'left',
-      output: 'obj'
+      output: 'obj',
+      distribute_to: 1
   }
   - {
       name: 'segInstance',
       input: 'left',
-      output: 'instance'
+      output: 'instance',
+      distribute_to: 2
   }
   - {
       name: 'segLabel',
       input: 'left',
-      output: 'label'
+      output: 'label',
+      distribute_to: 2
   }
   - {
       name: 'segPanoptic',
       input: 'left',
-      output: 'panoptic'
+      output: 'panoptic',
+      distribute_to: 3
   }
 
 cv_subsets_args:

@@ -2,7 +2,7 @@ import multiprocessing
 
 import torch.nn
 
-from s2_continuous_sharing.train_task_mgmt.trainTask import TrainTask
+from s3_drift_mgmt.train_task_mgmt.trainTask import TrainTask
 from utils.lut import CvTask
 
 

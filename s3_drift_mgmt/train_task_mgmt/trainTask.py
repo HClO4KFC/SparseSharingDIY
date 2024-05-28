@@ -32,7 +32,7 @@ class TrainTask():
             self.solve_as_prune(
                 lr = self.args['lr'],
                 remain_percent=self.args['prune_remain_percent'],
-                decrease_percent=self.args['decrease_percent'])
+                decrease_percent=self.args['dec_percent'])
         else:
             raise CustomError("train_type "+self.train_type+" is not defined")
         pass

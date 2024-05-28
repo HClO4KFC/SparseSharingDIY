@@ -42,15 +42,17 @@ def get_batch_size(cv_task, train_type):
 
 
 def select_cv_task(tactic: str, member: list, args: dict):
+    ingroup_no = [i for i in range(len(member))]
     if tactic == 'simple':
-        return random.choice(member)
-    elif tactic == 'dataset_size' or tactic == 'page_rank':
+        chosen = random.choice(ingroup_no)
+    elif tactic == 'dataset_size' or tactic == 'task_rank':
         prob = args['probability']
         assert len(prob) == len(member)
         prob = prob / sum(prob)
-        return random.choices(member, prob)
+        chosen = random.choices(ingroup_no, prob)
     else:
         raise CustomError("tactic " + tactic + " is not implemented")
+    return chosen
 
 
 def get_init_lr(task_id):
