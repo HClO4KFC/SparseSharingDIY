@@ -5,7 +5,7 @@ from torch.optim.adam import Adam
 from torch.utils.data import DataLoader
 
 from s1_init_structure.datasets.dataLoader import MultiDataset
-from model.mtlModel import MTL_model
+from model.mtlModel import ModelTree
 from s1_init_structure.mtg_net.transformer import HOINetTransformer
 from poor_old_things.trainEvalTest import mtg_training
 from utils.lut import get_init_lr
@@ -14,7 +14,7 @@ from utils.lut import get_init_lr
 def try_mtl_train(multi_train_dataset: MultiDataset, backbone: str, grouping: list, out_features: list,
                   try_epoch_num: int, tasks_info_list: list, cv_tasks_args) -> list:
     member = [i for i in range(len(grouping)) if grouping[i] == 1]
-    model = MTL_model(
+    model = ModelTree(
         backbone_name=backbone,
         member=member,
         out_features=out_features,

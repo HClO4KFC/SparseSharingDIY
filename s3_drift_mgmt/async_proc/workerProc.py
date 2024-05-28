@@ -1,42 +1,40 @@
 import multiprocessing
-
-import torch.nn
-
-from s3_drift_mgmt.train_task_mgmt.trainTask import TrainTask
-from utils.lut import CvTask
+import time
 
 
-def sense_raw_data(cv_task:CvTask):
+def sense_a_frame():
+    # TODO: 将rain和/或coarse附加在一部分fine_val后,模拟数据发生偏移的情况
+    return []
+
+
+def system_output(outs:list, subset_mapping:list, device_no:int):
+    for group, map in outs, subset_mapping:
+        assert len(group) == len(map)
+        for i in range(len(group)):
+            print(f'got output stream of subset {i} from device {device_no}')
     pass
 
 
-def accept(access_result):
-    # decide whether to accept the bias of this sub model
-    return access_result
-
-
-def assess(out):
-    # some forms of analytical methods to show if the model is precise
-    return 1
-
-
-def worker(model: torch.nn.Module, max_patience: int, cv_task: CvTask, retrain_max_epoch: int,
-           queue_from_main: multiprocessing.Queue, queue_to_main: multiprocessing.Queue):
-    patience = 0
-    model.eval()
+def worker(args):
+    forrest = args['forrest']
+    worker_no = args['worker_no']
+    sample_interval = args['sample_interval']
+    queue_from_main = args['queue_from_main']
+    queue_to_main = args['queue_to_main']
+    forrest.eval()
+    last_time = time.time()
     while True:
         if not queue_from_main.empty():
-            new_model = queue_from_main.get()
-            model = new_model
-            print("model for task no." + str(cv_task.no) + " is updated.")
-        data = sense_raw_data()
-        out = model(data)
-        if not accept(assess(out)):
-            patience += 1
-            if patience > max_patience:
-                retrain_args = {}
-                retrain_request = TrainTask(model=model, cv_tasks=[cv_task], max_epoch=retrain_max_epoch,
-                                            train_type="retrain", args=retrain_args)
-                print("model for task no." + str(cv_task.no) + " requires retraining.")
-                queue_to_main.put(retrain_request)
-                patience = 0
+            new_message = queue_from_main.get()
+            if new_message['type'] == 'model update':
+                assert 'update pack' in new_message
+                forrest.update(new_message['update pack'])
+            print(f"model in device {worker_no} is updated.")
+        data = sense_a_frame()
+        outs = forrest(data)
+        system_output(outs=outs, subset_mapping=forrest.output_subset_mapping, device_no=worker_no)
+        # 以一定周期发送抽样数据回主进程
+        curr_time = time.time()
+        if curr_time - last_time >= sample_interval:
+            new_message = {'type': 'sample frame', 'sender': worker_no, 'data': data}
+            queue_to_main.put(new_message)

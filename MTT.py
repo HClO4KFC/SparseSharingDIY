@@ -18,7 +18,7 @@ from s2_continuous_sharing.prunerProc import pruner
 from s3_drift_mgmt.async_proc.workerProc import worker
 from s3_drift_mgmt.train_task_mgmt.trainTask import TrainTask
 from s3_drift_mgmt.async_proc.trainManagerProc import train_manager
-from model.mtlModel import SubModel
+from model.mtlModel import ModelForrest
 from poor_old_things.details.mtlDetails import get_models
 
 if __name__ == '__main__':
@@ -122,6 +122,20 @@ if __name__ == '__main__':
         mgmt_args.max_queue_lvl, mgmt_args.trainer_num, queue_to_train_manager, queue_from_train_manager))
     train_manager.start()
 
+    # 计算端设备上的任务-模型分派关系overall_allocation
+    task_allocation = [cv_task_arg.allocate for cv_task_arg in cv_tasks_args]
+    end_device_num = max(task_allocation)
+    assert end_device_num <= basic_args.available_end_device_num
+    overall_allocation = []  # end_device_num(fixed) * group_num(fixed) * group_size(vary)
+    for end_device_no in range(end_device_num):
+        loads = [i for i in range(len(task_allocation)) if task_allocation[i] == end_device_no]
+        group_no_of_loads = [grouping[load] for load in loads]
+        grouped_loads = [[] for _ in range(max(grouping))]
+        for group_no in range(1, max(group_no_of_loads)):
+            list_ = [load for load in loads if grouping[load] == group_no]
+            grouped_loads[group_no] = list_
+        overall_allocation.append(grouped_loads)
+
     # 启动工作进程(模拟端设备)
     queue_from_workers = multiprocessing.Queue()
     queue_to_workers = []
@@ -129,16 +143,20 @@ if __name__ == '__main__':
     error_count = []
     # 小模型备份
     back_ups = []
-    for i in range(len(task_info_list)):
+    for end_device_no in range(len(overall_allocation)):
         queue_to_workers.append(multiprocessing.Queue())
-        group_no = grouping[i]
-        ingroup_no = models[group_no].member.index()
-        sub_model = SubModel(model=models, ingroup_no=ingroup_no)
-        back_ups.append(sub_model)
+        allocation = overall_allocation[end_device_no]
+        forrest_on_device = ModelForrest(
+            tree_list=models, allocation=allocation,
+            cv_subset_args=cv_subsets_args, cv_task_args=cv_tasks_args)
+        back_ups.append(forrest_on_device)
+        worker_args = {'forrest':forrest_on_device, 'worker_no':end_device_no,
+                       'sample_interval':mgmt_args.sample_interval_sec,
+                       'queue_from_main':queue_to_workers[end_device_no],
+                       'queue_to_main':queue_from_workers}
         workers.append(multiprocessing.Process(
             target=worker,
-            args=(sub_model, mgmt_args.worker_patience, task_info_list[i],
-                  multi_train_args.max_iter, queue_to_workers[i], queue_from_workers)))
+            args=worker_args))
         workers[i].start()
         error_count.append(0)
 
@@ -170,7 +188,7 @@ if __name__ == '__main__':
                 if sub_bias[list_idx] > err_detect_args.acc_threshold:
                     bias_cnt[task_id] += 1
                     if bias_cnt[task_id] > err_detect_args.err_patience:  # 小模型相对偏移过大,则更换小模型
-                        queue_to_workers[task_id].put(SubModel(
+                        queue_to_workers[task_id].put(ModelForrest(
                             model=models[model_id[list_idx]],
                             ingroup_no=models[model_id[list_idx]].member.index(task_id)
                         ))
@@ -213,7 +231,7 @@ if __name__ == '__main__':
             # group_no = grouping[task_id]
             # if bias_grade == 0:  # 分组不变, 重算mask
             #     retrain_args = {'task_id': task_id, 'biased_sample': biased_sample}
-            #     retrain_task = TrainTask(model=models[group_no], cv_tasks=task_id,
+            #     retrain_task = TrainTask(model=tree_list[group_no], cv_tasks=task_id,
             #                              max_epoch=single_prune_args.max_iter,
             #                              train_type='reprune', args=retrain_args)
             #     queue_to_train_manager.put(retrain_task)
@@ -225,5 +243,5 @@ if __name__ == '__main__':
             group_no = grouping[task_id]
             assert task_id in models[group_no].member
             ingroup_no = models[group_no].member.index(task_id)
-            sub_model = SubModel(model=models[group_no], ingroup_no=ingroup_no)
+            sub_model = ModelForrest(model=models[group_no], ingroup_no=ingroup_no)
             queue_to_workers[task_id].put(sub_model)

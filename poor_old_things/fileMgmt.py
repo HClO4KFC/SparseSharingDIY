@@ -26,14 +26,14 @@ def save_models(path_pre, models, dataset, device, end_num):
         os.makedirs(trained_model_path_pre)
     for i in range(len(models)):
         base_model = models[i]
-        print('models saving into', trained_model_path_pre + 'model_' + str(i) + '.pth...')
+        print('tree_list saving into', trained_model_path_pre + 'model_' + str(i) + '.pth...')
         torch.save(base_model, trained_model_path_pre + 'model_' + str(i) + '.pth')
 
 
 def load_models(path_pre, dataset, device, end_num, ensemble_num, gpu_id):
     trained_model_path_pre = get_model_pre(path_pre, dataset, device, end_num)
     if not os.path.exists(trained_model_path_pre):
-        print('trained models are not found in', trained_model_path_pre)
+        print('trained tree_list are not found in', trained_model_path_pre)
         return None
     models = []
     for i in range(ensemble_num):

@@ -3,6 +3,7 @@ basic_args:
   save_path_pre: 'test_files/'
   gpu_id: '0'
   seed: 0
+  available_end_device_num: 5
 
 dataset_args:
   dataset_name: 'cityscapes'
@@ -55,7 +56,7 @@ err_detect_args:
 mgmt_args:
   max_queue_lvl: 5
   trainer_num: 5
-  worker_paitience: 2 #
+  sample_interval_sec: 10 #
 
 temp_args:
   out_features: [1, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -69,7 +70,7 @@ cv_tasks_args:
       output: 'disparity',
       scale_factor: '',  #
       upsample_mode: 'linear',
-      distribute_to: 4
+      allocate: 4
       # 'nearest'最临近插值, linear线性插值,
       # bilinear双线性插值, bicubic双三次插值
       # trilinear双三次插值,area区域插值
@@ -78,43 +79,43 @@ cv_tasks_args:
       name: 'genRightCam',
       input: 'left',
       output: 'right',
-      distribute_to: 4
+      allocate: 4
   }
   - {
       name: 'detPeople',
       input: 'left',
       output: 'people',
-      distribute_to: 1
+      allocate: 1
   }
   - {
       name: 'detCars',
       input: 'left',
       output: 'car',
-      distribute_to: 1
+      allocate: 1
   }
   - {
       name: 'detObjs',
       input: 'left',
       output: 'obj',
-      distribute_to: 1
+      allocate: 1
   }
   - {
       name: 'segInstance',
       input: 'left',
       output: 'instance',
-      distribute_to: 2
+      allocate: 2
   }
   - {
       name: 'segLabel',
       input: 'left',
       output: 'label',
-      distribute_to: 2
+      allocate: 2
   }
   - {
       name: 'segPanoptic',
       input: 'left',
       output: 'panoptic',
-      distribute_to: 3
+      allocate: 3
   }
 
 cv_subsets_args:
