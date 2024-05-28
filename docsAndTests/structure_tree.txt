@@ -18,7 +18,6 @@ drift_management:
 		worker.py
 		trainer.py
 		manager.py
-	runOnline.py(TODO)
 model:
 	heads.py(TODO)
 	resNet.py

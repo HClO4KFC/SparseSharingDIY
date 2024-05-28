@@ -4,7 +4,7 @@ from poor_old_things.data_parsing.mtgDataParse import ParsedDataset, data_slice
 
 
 def eval_and_test(ensemble_list: list, parsed_data: ParsedDataset,
-                  batch_size: int, device: str, is_last_iter: bool):
+                  batch_size: int, device: str):
     x_eval, y_eval, mask_eval = parsed_data.get_eval_set()
     x_test, y_test, mask_test = parsed_data.get_test_set()
     ensemble_eval_output = torch.Tensor([])

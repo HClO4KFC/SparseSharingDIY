@@ -4,7 +4,7 @@ from utils.lut import get_max_patience, get_batch_size, select_cv_task
 from utils.errReport import CustomError
 
 
-class TrainTask():
+class TrainTask:
     # 用于描述训练任务的类,在trainQueue中管理,注意不是多任务学习中的视觉任务(本代码中一般称为cv_task)
 
     def __init__(self, model:torch.nn.Module, cv_tasks:list, max_epoch:int, train_type:str, args:dict):

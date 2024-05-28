@@ -1,6 +1,6 @@
 import json
 import os
-
+import torch
 import glob
 
 from PIL import Image
@@ -144,3 +144,12 @@ class SingleDataset(Dataset):
             data_item = self.transform(data_item)
             label_item = self.transform(label_item)
         return data_item, label_item
+
+
+def collate_func(batch:list):
+    # Initialize a dictionary to store the batched data
+    batch_dict = {batch[0][1][subset]:[batch[no][0][subset] for no in range(len(batch))] for subset in range(len(batch[0][0]))}
+    # Convert lists to tensors if necessary
+    for subset_name, sub_items in batch_dict.items():
+        batch_dict[subset_name] = [torch.stack(items) for items in sub_items]
+    return batch_dict

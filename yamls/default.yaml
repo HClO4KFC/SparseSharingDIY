@@ -85,19 +85,25 @@ cv_tasks_args:
       name: 'detPeople',
       input: 'left',
       output: 'people',
-      allocate: 1
+      allocate: 1,
+      num_classes: ,
+      num_anchors: 9
   }
   - {
       name: 'detCars',
       input: 'left',
       output: 'car',
-      allocate: 1
+      allocate: 1,
+      num_classes: ,
+      num_anchors: 9
   }
   - {
       name: 'detObjs',
       input: 'left',
       output: 'obj',
-      allocate: 1
+      allocate: 1,
+      num_classes: ,
+      num_anchors: 9
   }
   - {
       name: 'segInstance',

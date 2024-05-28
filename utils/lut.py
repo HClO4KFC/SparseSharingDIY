@@ -85,20 +85,20 @@ class CvTask:
                                      cv_subsets_args=cv_subsets_args,
                                      train_val_test='val',
                                      transform=transforms.Compose([transforms.ToTensor()]))
-        self.train_loader = DataLoader(dataset=self.train_set,
-                                       batch_size=dataset_args.batch_size,
-                                       shuffle=True,
-                                       sampler=None,
-                                       collate_fn=collate_func)
-        self.val_loader = DataLoader(dataset=self.val_set,
-                                     batch_size=dataset_args.batch_size,
-                                     shuffle=False,
-                                     sampler=None,
-                                     collate_fn=collate_func)
+        # self.train_loader = DataLoader(dataset=self.train_set,
+        #                                batch_size=dataset_args.batch_size,
+        #                                shuffle=True,
+        #                                sampler=None,
+        #                                collate_fn=collate_func)
+        # self.val_loader = DataLoader(dataset=self.val_set,
+        #                              batch_size=dataset_args.batch_size,
+        #                              shuffle=False,
+        #                              sampler=None,
+        #                              collate_fn=collate_func)
 
-    def get_next_batch(self, train_val_test: str):
-        if train_val_test == 'train':
-            return self.train_loader
-        print('实现CvTask.get_next_batch()')
-        # TODO: 从dataset中取出从dataset_bookmark开始,长度为batch_size的一批数据,并更新dataset_bookmark
-        pass
+    # def get_next_batch(self, train_val_test: str):
+    #     if train_val_test == 'train':
+    #         return self.train_loader
+    #     print('实现CvTask.get_next_batch()')
+    #     # TODO: 从dataset中取出从dataset_bookmark开始,长度为batch_size的一批数据,并更新dataset_bookmark
+    #     pass

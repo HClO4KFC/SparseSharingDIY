@@ -3,7 +3,7 @@ import torch.nn
 from s3_drift_mgmt.train_task_mgmt.trainTask import TrainTask
 
 
-class TrainQueue():
+class TrainQueue:
     def __init__(self, max_queue_lvl):
         self.idle_task = TrainTask(torch.nn.Linear(1, 1), [], 1, 'idle')
         self.train_queues = [[]]  # 工作状态下是二维列表,包含的一维列表个数代表当前活跃的优先级个数,越靠后的一维列表优先级越高;同一个一维列表中的活动处于同一优先级

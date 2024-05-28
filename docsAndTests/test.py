@@ -7,7 +7,7 @@ from omegaconf import omegaconf
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
-from dataset_preparing.dataLoader import SingleDataset
+from s1_init_structure.datasets.dataLoader import SingleDataset
 
 
 class EyeImageGenerator(nn.Module):

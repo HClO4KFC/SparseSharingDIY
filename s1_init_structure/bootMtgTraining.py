@@ -4,7 +4,7 @@ import torch
 from torch.optim.adam import Adam
 from torch.utils.data import DataLoader
 
-from s1_init_structure.datasets.dataLoader import MultiDataset
+from s1_init_structure.datasets.dataLoader import MultiDataset, collate_func
 from model.mtlModel import ModelTree
 from s1_init_structure.mtg_net.transformer import HOINetTransformer
 from poor_old_things.trainEvalTest import mtg_training
@@ -25,6 +25,7 @@ def try_mtl_train(multi_train_dataset: MultiDataset, backbone: str, grouping: li
         batch_size=2,
         drop_last=True,
         shuffle=True,
+        collate_fn=collate_func
     )
     heads_optims = [Adam(params=model.heads[i].parameters(), lr=get_init_lr(model.member[i])) for i in
                     range(len(model.member))]
@@ -127,7 +128,11 @@ def mtg_active_learning(multi_train_dataset, init_grp_args, mtgnet_args,
         for j in range(task_num):
             # 制作上批选出的ctrain的ground truth, 清空候选
             for new_member in selected_train_set:
-                new_member_output = try_mtl_train(grouping=new_member, try_epoch_num=try_epoch_num)
+                new_member_output = try_mtl_train(
+                    multi_train_dataset=multi_train_dataset, try_epoch_num=try_epoch_num,
+                    backbone=backbone, out_features=out_features,
+                    tasks_info_list=task_info_list, cv_tasks_args=cv_task_args,
+                    grouping=new_member)
                 train_x.append(new_member)
                 train_y.append([new_member_output[i] - baseline_y[i] for i in range(task_num) if baseline_y[i] != 0])
 
@@ -153,4 +158,6 @@ def mtg_active_learning(multi_train_dataset, init_grp_args, mtgnet_args,
                 in_test_list[binList2Int(x)] = False
             if (k * task_num + j) % mtgnet_upd_freq == mtgnet_upd_freq - 1:
                 # model, min_loss = update_model(model, train_x, train_y, train_index)
-                mtg_training(model, ensemble_num, dataset_name, gpu_id, step=1, end_num=1, dropout_rate=0.5)
+                mtg_training(
+                    model=model, ensemble_num=ensemble_num, dataset_name=dataset_name,
+                    gpu_id=gpu_id, step=1, end_num=1, trn_x=train_x, trn_y=train_y)

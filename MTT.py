@@ -19,7 +19,7 @@ from s3_drift_mgmt.async_proc.workerProc import worker
 from s3_drift_mgmt.train_task_mgmt.trainTask import TrainTask
 from s3_drift_mgmt.async_proc.trainManagerProc import train_manager
 from model.mtlModel import ModelForrest
-from poor_old_things.details.mtlDetails import get_models
+from s1_init_structure.initModelForrest import get_models
 
 if __name__ == '__main__':
     # args = get_args()
@@ -88,7 +88,8 @@ if __name__ == '__main__':
 
     # 初始化参数共享模型(掩膜全通,为硬参数共享)
     models = get_models(grouping=grouping, backbone_name=mtl_design_args.backbone,
-                        prune_names=single_prune_args.need_cut, out_features=temp_args.out_features)
+                        prune_names=single_prune_args.need_cut,
+                        out_features=temp_args.out_features, cv_task_args=cv_tasks_args)
 
     # 阶段2: 硬参数共享过渡到稀疏参数共享
 
@@ -111,7 +112,7 @@ if __name__ == '__main__':
     multi_task_train(dict_lock=dict_lock, shared_dict=shared_dict,
                      multi_train_args=multi_train_args, cv_tasks_args=cv_tasks_args,
                      models=models, multi_train_dataset=multi_train_dataset,
-                     task_info_list=task_info_list, task_ranks=task_ranks)
+                     task_info_list=task_info_list, task_ranks=task_ranks, grouping=grouping)
     pruner.join()
 
     # 阶段3: 持续演化

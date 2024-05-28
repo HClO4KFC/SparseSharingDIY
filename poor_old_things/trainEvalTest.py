@@ -7,7 +7,7 @@ from poor_old_things.details.evalDetails import eval_and_test
 
 
 def mtg_training(model:torch.nn.Module, ensemble_num, dataset_name,
-                 gpu_id, step=1, end_num=1, dropout_rate=0.5)->tuple[ParsedDataset, list]:
+                 gpu_id, step, end_num, trn_x:list, trn_y:list)->tuple[ParsedDataset, list]:
 
     # 将用于保存最后一次训练中的任务嵌入信息和编码器层输出
     task_embedding_list = []
@@ -26,7 +26,7 @@ def mtg_training(model:torch.nn.Module, ensemble_num, dataset_name,
     device = 'cuda:' + gpu_id
     print(device)
 
-    suggested_end_num, parsed_data = data_parse(dataset_name, step, device)
+    suggested_end_num, parsed_data = data_parse(dataset_name, step, device, trn_x, trn_y)
 
     if end_num < 0:
         end_num = suggested_end_num

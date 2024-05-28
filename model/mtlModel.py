@@ -9,21 +9,28 @@ from utils.lut import use_which_head, use_which_optimizer, get_init_lr
 
 
 def build_backbone(backbone_name):
+    model = None
+    out_channels = None
     if backbone_name == 'ResNet18':
         model = resnet18()
+        out_channels = model.out_channels
     elif backbone_name == 'ResNet34':
         model = resnet34()
+        out_channels = model.out_channels
     elif backbone_name == 'ResNet50':
         # model = resnet50()
         model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
-        model = torch.nn.Sequential(*list(model.children())[:-1])
+        model = torch.nn.Sequential(*list(model.children())[:-2])
+        out_channels = model[-1][-1].conv3.out_channels
     elif backbone_name == 'ResNet101':
         model = resnet101()
+        out_channels = model.out_channels
     elif backbone_name == 'ResNet152':
         model = resnet152()
+        out_channels = model.out_channels
     else:
         raise CustomError("backbone " + backbone_name + " is not implemented yet")
-    return model
+    return model, out_channels
 
 
 def build_head(cv_task_arg, in_size, out_size):
@@ -35,7 +42,8 @@ def build_head(cv_task_arg, in_size, out_size):
 class ModelTree(torch.nn.Module):
     def __init__(self, backbone_name:str, member:list, out_features:list, prune_names:list, cv_tasks_args):
         super(ModelTree, self).__init__()
-        self.backbone = build_backbone(backbone_name)
+        self.backbone, backbone_out_channels = build_backbone(backbone_name)
+        # print(self.backbone)
         self.heads = []
         self.head_names = []
         self.out_features = out_features
@@ -44,7 +52,7 @@ class ModelTree(torch.nn.Module):
         self.masks = []
         self.optims = []
         for i in member:
-            head, head_name = build_head(cv_task_arg=cv_tasks_args[i], in_size=self.backbone.out_channels, out_size=out_features[i])
+            head, head_name = build_head(cv_task_arg=cv_tasks_args[i], in_size=backbone_out_channels, out_size=out_features[i])
             self.heads.append(head)
             self.head_names.append(head_name)
             mask = {name: torch.nn.Parameter(torch.ones(named_param.size()).to(named_param).bool(), requires_grad=False)
