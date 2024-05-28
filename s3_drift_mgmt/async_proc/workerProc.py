@@ -1,4 +1,3 @@
-import multiprocessing
 import time
 
 
@@ -12,7 +11,6 @@ def system_output(outs:list, subset_mapping:list, device_no:int):
         assert len(group) == len(map)
         for i in range(len(group)):
             print(f'got output stream of subset {i} from device {device_no}')
-    pass
 
 
 def worker(args):

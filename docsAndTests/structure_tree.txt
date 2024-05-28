@@ -8,10 +8,11 @@ init_structure:
 			prepareObjDetection.py
 		dataLoader.py
 	beamSearch.py
-	taskRank.py(TODO)
+	taskRank.py
 	bootMtgTraining.py
 continuous_sharing:
-	?
+    multiTaskTrain.py
+    pruner_proc
 drift_management:
 	async_proc:
 		worker.py

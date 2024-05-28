@@ -35,7 +35,6 @@ class TrainTask():
                 decrease_percent=self.args['dec_percent'])
         else:
             raise CustomError("train_type "+self.train_type+" is not defined")
-        pass
 
     def grade(self):
         # TODO:评估当前任务收敛速度,用于在同等优先级下的任务调度
