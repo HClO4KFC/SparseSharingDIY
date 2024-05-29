@@ -123,7 +123,7 @@ if __name__ == '__main__':
         mgmt_args.max_queue_lvl, mgmt_args.trainer_num, queue_to_train_manager, queue_from_train_manager))
     train_manager.start()
 
-    # 计算端设备上的任务-模型分派关系overall_allocation
+    # 计算端设备上的所有任务-模型分派关系overall_allocation
     task_allocation = [cv_task_arg.allocate for cv_task_arg in cv_tasks_args]
     end_device_num = max(task_allocation)
     assert end_device_num <= basic_args.available_end_device_num
