@@ -38,8 +38,9 @@ def build_head(cv_task_arg, in_size, out_size):
 
 
 class ModelTree(torch.nn.Module):
-    def __init__(self, backbone_name:str, member:list, out_features:list, prune_names:list, cv_tasks_args):
+    def __init__(self, backbone_name:str, member:list, out_features:list, prune_names:list, cv_tasks_args, no_mask=False):
         super(ModelTree, self).__init__()
+        self.no_mask = no_mask
         self.backbone, backbone_out_channels = build_backbone(backbone_name)
         # print(self.backbone)
         self.heads = []
@@ -70,13 +71,14 @@ class ModelTree(torch.nn.Module):
             for name, param in head.named_parameters():
                 param.data = torch.rand(param.size())
 
-    def forward(self, x, task_id:int):
+    def forward(self, x, task_id=-1):
         if task_id == -1:  # 整体训练
-            out = self.backbone(x)
-            outputs = []
-            for i in range(len(self.member)):
-                outputs.append(self.heads[i](out))
-            return outputs
+            if self.no_mask:
+                out = self.backbone(x)
+                outs = [self.heads[i](out) for i in range(len(self.heads))]
+                return outs
+            outs = [self.forward(x, i) for i in self.member]
+            return outs
         assert task_id in self.member
         ingroup_no = self.member.index(task_id)
         masked_params = {}
@@ -105,10 +107,12 @@ class ModelTree(torch.nn.Module):
                 if name in original_params:
                     param.data.copy_(original_params[name])
 
-        out_list = []
-        for head in self.heads:
-            out_list.append(head(out))
-        return out_list
+        # out_list = []
+        # for head in self.heads:
+        #     out_list.append(head(out))
+        # return out_list
+        out = self.heads[ingroup_no](out)
+        return out
 
     def get_part(self, allocation:list):
         ans = copy.deepcopy(self)
@@ -157,3 +161,15 @@ class ModelForrest(torch.nn.Module):
 
     def get_tree_list(self):
         return self.models
+
+    def update(self, update_type:str, update_pack:dict):
+        if update_type == 'model update':
+            model_id = update_pack['model_id']
+            new_model = update_pack['new_model']
+            assert len(self.models[model_id].member) == len(new_model.member)
+            for i in range(len(self.models[model_id].member)):
+                assert self.models[model_id].member[i] == new_model.member[i]
+            self.models[model_id] = new_model  # [new_model.get_part(allocation[i]) for i in range(len(tree_list))]
+        else:
+            raise CustomError('unknown update type: '+update_type)
+

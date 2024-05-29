@@ -13,6 +13,8 @@ from utils.lookUpTables import get_init_lr
 
 def try_mtl_train(multi_train_dataset: MultiDataset, backbone: str, grouping: list, out_features: list,
                   try_epoch_num: int, tasks_info_list: list, cv_tasks_args) -> list:
+    # 输入: 一个分组方案grouping,其中在分组中的任务记作1,不在的记作0
+    # 输出: 尝试将这些任务分为一组进行硬参数共享训练一定轮次后,得到
     member = [i for i in range(len(grouping)) if grouping[i] == 1]
     model = ModelTree(
         backbone_name=backbone,
@@ -43,7 +45,7 @@ def try_mtl_train(multi_train_dataset: MultiDataset, backbone: str, grouping: li
             for ingroup_no in range(len(member)):
                 backbone_optim.zero_grad()
                 heads_optims[ingroup_no].zero_grad()
-                outputs = model(x=data, task_id=-1)
+                outputs = model(x=data, task_id=model.member[ingroup_no])  # BUGGY
                 loss = criterions[ingroup_no](outputs[ingroup_no], targets[ingroup_no])
                 loss.backward()
                 heads_optims[ingroup_no].step()

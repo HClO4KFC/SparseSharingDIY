@@ -36,9 +36,10 @@ def worker(args, dataset_path_pre, cv_subset_args):
     while True:
         if not queue_from_main.empty():
             new_message = queue_from_main.get()
-            if new_message['type'] == 'model update':
+            assert 'type' in new_message
+            if new_message.type == 'model_update':
                 assert 'update pack' in new_message
-                forrest.update(new_message['update pack'])
+                forrest.update(new_message['type'], new_message['update pack'])
             print(f"model in device {worker_no} is updated.")
         data = sensor.sense_a_frame()
         outs = forrest(data['input'])

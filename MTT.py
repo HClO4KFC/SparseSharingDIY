@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from s2_continuous_sharing.MultiTaskTrain import multi_task_train
-from s3_drift_mgmt.teacherModels import build_teacher_models
+from s3_drift_mgmt.simTeacherModels import teachers
 from utils.lookUpTables import CvTask
 from torchvision import transforms
 
@@ -19,6 +19,7 @@ from s3_drift_mgmt.train_task_mgmt.trainTask import TrainTask
 from s3_drift_mgmt.async_proc.trainManagerProc import train_manager
 from model.mtlModel import ModelForrest
 from s1_init_structure.initModelForrest import get_models
+
 
 if __name__ == '__main__':
     # args = get_args()
@@ -160,38 +161,72 @@ if __name__ == '__main__':
         workers[i].start()
         error_count.append(0)
 
-    # TODO: 建立教师模型
-    teachers = build_teacher_models()
-
     # 开始持续演化,进程图worker(s)<=(<重分配)(抽样数据>)=>main<=(<重训结果)(重训任务>)=>train_manager<=(<重训结果)(重训任务)=>trainer(s)
     error_cnt = [0 for _ in range(task_num)]
     bias_cnt = [0 for _ in range(task_num)]
     # runtime_dataset_size = err_detect_args.runtime_dataset_size
     # runtime_dataset = [[None for _ in range(len(cv_subsets_args))] for _ in range(runtime_dataset_size)]
     # runtime_dataset_idx = 0
-
+    allocation = []
+    for model in models:
+        allocation.append(model.member)
+    models = ModelForrest(tree_list=models, allocation=allocation, cv_subset_args=cv_subsets_args, cv_task_args=cv_tasks_args)
+    # 封装edge分组共享模型群,与每个end device上的forrest同构,区别仅在于member多少
     while True:
         if not queue_from_workers.empty():  # 收到来自端设备的采样数据
-            new_sample_input = queue_from_workers.get()
-            sensor_id = new_sample_input['sensor_id']
-            related_task_list = [i for i in range(task_num) if basic_args.distribution[i] == sensor_id]
-            targets = [teachers[task_id](new_sample_input['frame']) for task_id in related_task_list]  # 教师模型推理结果
+            new_message = queue_from_workers.get()
+            # {'type': 'sample frame', 'sender': worker_no, 'data': data}
+            msg_type = new_message['type']
+            msg_sender = new_message['sender']
+            msg_data = new_message['data']
+            # {'input':[sub_out[i] for i in range(len(self.subset_name_list)) if self.subset_name_list[i] == 'rain'][0],
+            #  'subsets':sub_out,
+            #  'subset_names':self.subset_name_list}
+            related_task_list = [i for i in range(task_num) if basic_args.distribution[i] == msg_sender]
+            targets = [teachers(task_id=task_id, msg_data=msg_data, cv_tasks_args=cv_tasks_args)
+                       for task_id in related_task_list]  # 教师模型推理结果
             model_id = [grouping[rel_task] for rel_task in related_task_list]
-            outputs = [model(new_sample_input['frame']) for model in models]  # 大模型推理结果
-            outputs = [outputs[model] for model in model_id]
-            sub_outputs = [back_ups[rel_task] for rel_task in related_task_list]  # 备份子模型的推演结果
+            edge_output = models(msg_data['input'])
+            edge_output_plain = [
+                [edge_output[group_no][item_no]
+                 for group_no in range(len(edge_output))
+                 for item_no in range(len(edge_output[group_no]))
+                 if models.task_mapping[group_no][item_no] == task_id][0]
+                for task_id in related_task_list
+            ]
+            end_output = back_ups[msg_sender](msg_data['input'])
+            end_output_plain = [
+                [end_output[group_no][item_no]
+                 for group_no in range(len(end_output))
+                 for item_no in range(len(end_output[group_no]))
+                 if models.task_mapping[group_no][item_no] == task_id][0]
+                for task_id in related_task_list
+            ]
             criterions = [task_info_list[rel_task].loss for rel_task in related_task_list]
-            sub_bias = [criterions[idx](sub_outputs[idx], outputs[idx]) for idx in range(len(related_task_list))]
-            losses = [criterions[idx](outputs[idx], targets[idx]) for idx in range(len(related_task_list))]
+            sub_bias = [criterions[idx](end_output_plain[idx], edge_output_plain[idx]) for idx in range(len(related_task_list))]
+            losses = [criterions[idx](edge_output_plain[idx], targets[idx]) for idx in range(len(related_task_list))]
             for list_idx in range(len(related_task_list)):
                 task_id = related_task_list[list_idx]
                 if sub_bias[list_idx] > err_detect_args.acc_threshold:
                     bias_cnt[task_id] += 1
-                    if bias_cnt[task_id] > err_detect_args.err_patience:  # 小模型相对偏移过大,则更换小模型
-                        queue_to_workers[task_id].put(ModelForrest(
-                            model=models[model_id[list_idx]],
-                            ingroup_no=models[model_id[list_idx]].member.index(task_id)
-                        ))
+                    if bias_cnt[task_id] > err_detect_args.err_patience:  # 小模型相对偏移过大,则更新小模型
+                        back_up = back_ups[msg_sender]
+                        model_no = None
+                        for i in range(len(back_up.models)):
+                            if task_id in back_up.models[i].member:
+                                model_no = i
+                                break
+                        assert model_no is not None
+                        new_model = models.models[model_no].get_part(back_up.models[model_no].member)
+                        new_message = {
+                            'type':'model update',
+                            'update pack':{
+                                'model_no':model_no,
+                                'new_model':new_model
+                            }
+                        }
+                        back_up.update(new_message['type'], new_message['update pack'])
+                        queue_to_workers[task_id].put(new_message)
 
             # runtime_dataset[runtime_dataset_idx] = [None for _ in range(len(cv_subsets_args))]
             # output_names = [cv_tasks_args[rel_task].output for rel_task in related_task_list]
