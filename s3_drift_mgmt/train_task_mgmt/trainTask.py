@@ -1,6 +1,6 @@
 import torch.nn
 
-from utils.lut import get_max_patience, get_batch_size, select_cv_task
+from utils.lookUpTables import get_max_patience, get_batch_size, select_cv_task
 from utils.errReport import CustomError
 
 

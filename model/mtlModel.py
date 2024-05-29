@@ -5,12 +5,10 @@ from torchvision import models
 
 from utils.errReport import CustomError
 from model.resNet import resnet18, resnet34, resnet101, resnet152
-from utils.lut import use_which_head, use_which_optimizer, get_init_lr
+from utils.lookUpTables import use_which_head, use_which_optimizer, get_init_lr
 
 
 def build_backbone(backbone_name):
-    model = None
-    out_channels = None
     if backbone_name == 'ResNet18':
         model = resnet18()
         out_channels = model.out_channels
@@ -129,7 +127,6 @@ class ModelTree(torch.nn.Module):
         return ans
 
     def get_subset_mapping(self, io:str, cv_subset_args, cv_task_args):
-        ans = None
         if io == 'input':
             ans = [[subset_no for subset_no in range(len(cv_subset_args)) if cv_subset_args[subset_no].name == cv_task_args[member].input][0] for member in self.member]
         elif io == 'output':

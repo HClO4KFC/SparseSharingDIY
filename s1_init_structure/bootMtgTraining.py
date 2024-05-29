@@ -4,11 +4,11 @@ import torch
 from torch.optim.adam import Adam
 from torch.utils.data import DataLoader
 
-from s1_init_structure.datasets.dataLoader import MultiDataset, collate_func
+from datasets.dataLoader import MultiDataset, collate_func
 from model.mtlModel import ModelTree
 from s1_init_structure.mtg_net.transformer import HOINetTransformer
 from poor_old_things.trainEvalTest import mtg_training
-from utils.lut import get_init_lr
+from utils.lookUpTables import get_init_lr
 
 
 def try_mtl_train(multi_train_dataset: MultiDataset, backbone: str, grouping: list, out_features: list,

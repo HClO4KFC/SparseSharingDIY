@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models import resnet50
+from torchvision.models import resnet50, ResNet50_Weights
+
 
 class FPN(nn.Module):
     def __init__(self, in_channels_list, out_channels):
@@ -41,7 +42,7 @@ class BlendModule(nn.Module):
 class BlendMask(nn.Module):
     def __init__(self, num_classes):
         super(BlendMask, self).__init__()
-        self.backbone = resnet50(pretrained=True)
+        self.backbone = resnet50(weights=ResNet50_Weights.DEFAULT)
         self.fpn = FPN([256, 512, 1024, 2048], 256)
         self.blend_module = BlendModule(256 + 256, 128, num_classes)
         self.cls_head = nn.Conv2d(256, num_classes, kernel_size=3, padding=1)

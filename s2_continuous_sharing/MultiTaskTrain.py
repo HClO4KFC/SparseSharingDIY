@@ -3,7 +3,7 @@ import multiprocessing
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from utils.lut import select_cv_task
+from utils.lookUpTables import select_cv_task
 
 
 def multi_task_train(

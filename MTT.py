@@ -2,16 +2,15 @@ import multiprocessing
 import omegaconf
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 
 from s2_continuous_sharing.MultiTaskTrain import multi_task_train
 from s3_drift_mgmt.teacherModels import build_teacher_models
-from utils.lut import CvTask, select_cv_task
+from utils.lookUpTables import CvTask
 from torchvision import transforms
 
 from s1_init_structure.bootMtgTraining import mtg_active_learning
 from s1_init_structure.beamSearch import mtg_beam_search
-from s1_init_structure.datasets.dataLoader import MultiDataset
+from datasets.dataLoader import MultiDataset
 from s1_init_structure.taskRank import mtg_task_rank
 from s2_continuous_sharing.rw_lock.RwLock import ReadWriteLock
 from s2_continuous_sharing.prunerProc import pruner

@@ -4,8 +4,6 @@ import os.path
 
 
 def gen(train_val: str):
-    person_path_pre = '..\cvDatasets\cityscapes\gtBbox_cityPersons'
-    car_path_pre = '..\cvDatasets\cityscapes\gtBbox3d'
     # person_path_like = os.path.join(person_path_pre, train_val, '**', '*_gtBboxCityPersons.json')
     person_path_like = os.path.join('D:\\doing\\cvDatasets\\cityscapes\\gtBbox_cityPersons', train_val, '**', '*_gtBboxCityPersons.json')
     car_path_like = os.path.join('D:\\doing\\cvDatasets\\cityscapes\\gtBbox3d', train_val, '**', '*_gtBbox3d.json')

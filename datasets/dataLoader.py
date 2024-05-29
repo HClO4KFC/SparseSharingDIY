@@ -10,23 +10,22 @@ from torchvision import transforms
 from utils.errReport import CustomError
 
 
-def get_sub_item(file_name, args):
-    ans_tensor = None
-    if args.name == 'left' \
-            or args.name == 'right' \
-            or args.name == 'disparity' \
-            or args.name == 'rain':
+def get_sub_item(file_name, name):
+    if name == 'left' \
+            or name == 'right' \
+            or name == 'disparity' \
+            or name == 'rain':
         # 读取单/三通道图片: leftImg8bit为左眼相机原图, rightImg8bit为右眼相机原图
         # image = Image.open(file_name).convert('RGB')
         # trans = transforms.Compose([transforms.ToTensor()])  # 定义数据预处理模式
         ans_tensor = Image.open(file_name).convert('RGB')
-    elif args.name == 'instance' \
-            or args.name == 'label' \
-            or args.name == 'panoptic':
+    elif name == 'instance' \
+            or name == 'label' \
+            or name == 'panoptic':
         # 读取像素色值形式的标记: labelIds为类别标记, instance为实例标记, 均用像素色值编码
         # trans = transforms.Compose([transforms.ToTensor()])  # 定义数据预处理模式
         ans_tensor = Image.open(file_name)
-    elif args.name == 'people':
+    elif name == 'people':
         with open(file_name, 'r') as f:
             data = json.load(f)
 
@@ -40,7 +39,7 @@ def get_sub_item(file_name, args):
             boxes.append(bbox)
             labels.append(label)
         return boxes, labels
-    elif args.name == 'car':
+    elif name == 'car':
         with open(file_name, 'r') as f:
             data = json.load(f)
 
@@ -54,7 +53,7 @@ def get_sub_item(file_name, args):
             boxes_2d.append(bbox_2d)
             labels.append(label)
         return boxes_2d, labels
-    elif args.name == 'obj':
+    elif name == 'obj':
         with open(file_name, 'r') as f:
             data = json.load(f)
         objects = data['objects']
@@ -65,7 +64,7 @@ def get_sub_item(file_name, args):
             labels.append(obj['label'])
         return bboxes_2d, labels
     else:
-        raise CustomError("Unknown set_name='" + args.set_name + "' while loading datasets")
+        raise CustomError("Unknown name='" + name + "' while loading datasets")
     return ans_tensor
 
 
@@ -112,7 +111,7 @@ class MultiDataset(Dataset):
 
     def __getitem__(self, index):
         file_names = [self.file_list[i][index] for i in range(self.subset_num)]  # 每个subset当前index文件名
-        sub_items = [get_sub_item(file_names[i], self.subsets_args[i]) for i in range(self.subset_num)]  # 按文件名取得所存数据
+        sub_items = [get_sub_item(file_names[i], self.subsets_args[i].name) for i in range(self.subset_num)]  # 按文件名取得所存数据
         sub_out = [self.transforms[i](sub_items[i]) for i in range(self.subset_num)]
         return sub_out, self.subset_name
 
@@ -138,8 +137,8 @@ class SingleDataset(Dataset):
     def __getitem__(self, index):
         data_file_name = self.data_file_list[index]
         label_file_name = self.label_file_list[index]
-        data_item = get_sub_item(data_file_name, self.data_args)
-        label_item = get_sub_item(label_file_name, self.label_args)
+        data_item = get_sub_item(data_file_name, self.data_args.name)
+        label_item = get_sub_item(label_file_name, self.label_args.name)
         if self.transform is not None:
             data_item = self.transform(data_item)
             label_item = self.transform(label_item)
@@ -153,3 +152,56 @@ def collate_func(batch:list):
     for subset_name, sub_items in batch_dict.items():
         batch_dict[subset_name] = [torch.stack(items) for items in sub_items]
     return batch_dict
+
+
+class SensorDataset(Dataset):
+    def __init__(self, path_pre:str, cv_subset_args, worker_no:int):
+        all_files = glob.glob(os.path.join(path_pre, 'gt_map', '*.txt'))
+        content_list = []
+        self.worker_no = worker_no
+        self.current_idx = 0
+        self.raining = False
+        self.subset_name_list = [cv_subset_args[i].name for i in range(len(cv_subset_args))]
+        self.subset_name_list.append('rain')
+        for i in range(len(cv_subset_args)):
+            content_list.append([file for file in all_files if file.split('\\')[-1].split('.')[0] == cv_subset_args[i].name][0])
+        self.subset_file_list = [[] for _ in cv_subset_args]
+        for content in content_list:
+            # 逐行读取文件
+            with open(content, "r") as file:
+                self.subset_file_list.append([line.strip() for line in file])
+        with open([file for file in all_files if file.split('\\')[-1].split('.')[0] == 'rain'][0]) as file:
+            self.subset_file_list.append([line.strip() for line in file])
+        self.length = len(self.subset_file_list[0])
+        for i in range(len(self.subset_file_list)):
+            assert self.subset_file_list[i] == self.length
+
+        # 数据变换
+        transform = transforms.Compose(transforms.ToTensor())
+        self.transforms = [(transform if cv_subset_args[i].ext == 'png' else transforms.Compose([])) for i in range(len(self.subset_name_list))]
+        self.transforms[self.subset_name_list.index('left')] = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+        self.transforms[self.subset_name_list.index('rain')] = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, index):
+        file_names = [self.subset_file_list[i][index] for i in range(len(self.subset_name_list))]  # 每个subset当前index文件名
+        sub_items = [get_sub_item(file_names[i], self.subset_name_list[i]) for i in range(len(self.subset_name_list))]  # 按文件名取得所存数据
+        sub_out = [self.transforms[i](sub_items[i]) for i in range(len(self.subset_name_list))]
+        # return sub_out, self.subset_name_list
+        if self.raining:
+            return {'input':[sub_out[i] for i in range(len(self.subset_name_list)) if self.subset_name_list[i] == 'rain'][0],
+                    'subsets':sub_out,
+                    'subset_names':self.subset_name_list}
+        else:
+            return {'input':[sub_out[i] for i in range(len(self.subset_name_list)) if self.subset_name_list[i] == 'left'][0],
+                    'subsets':sub_out,
+                    'subset_names':self.subset_name_list}
+
+    def sense_a_frame(self):
+        item = self.__getitem__(self.current_idx)
+        if self.current_idx >= self.length - 1:
+            print(f'WARNING: simulated sensor dataset in end device no.{self.worker_no} is running out, reset to idx=0.')
+            self.current_idx = 0
+        return item
