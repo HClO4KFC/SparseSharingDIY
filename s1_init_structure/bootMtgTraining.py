@@ -37,10 +37,10 @@ def try_mtl_train(multi_train_dataset: MultiDataset, backbone: str, grouping: li
         model.train()
         for batch_idx, (subsets, subset_names) in enumerate(multi_train_dataLoader):
             # 整理批数据
-            data = [subsets[i] for i in range(len(subset_names)) if subset_names[i][0] == cv_tasks_args[0]['input']][0]
+            data = [subsets[name] for name in subset_names if name == cv_tasks_args[0]['input']][0]
             targets = []
             for cv_task_no in member:
-                targets.append([subsets[i] for i in range(len(subset_names)) if subset_names[i][0] == cv_tasks_args[cv_task_no]['output']][0])
+                targets.append([subsets[name] for name in subset_names if name == cv_tasks_args[cv_task_no]['output']][0])
 
             for ingroup_no in range(len(member)):
                 backbone_optim.zero_grad()

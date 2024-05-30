@@ -10,7 +10,7 @@ from torchvision import transforms
 from utils.errReport import CustomError
 
 
-def get_sub_item(file_name, name, label_id_maps:dict):
+def get_sub_item(file_name, name, label_id_maps: dict):
     if name == 'left' \
             or name == 'right' \
             or name == 'disparity' \
@@ -26,6 +26,7 @@ def get_sub_item(file_name, name, label_id_maps:dict):
         # trans = transforms.Compose([transforms.ToTensor()])  # 定义数据预处理模式
         ans_tensor = Image.open(file_name)
     elif name == 'people':
+        assert 'people' in label_id_maps
         with open(file_name, 'r') as f:
             data = json.load(f)
 
@@ -37,9 +38,10 @@ def get_sub_item(file_name, name, label_id_maps:dict):
             bbox = obj['bbox']
             label = obj['label']
             boxes.append(bbox)
-            labels.append(label)
+            labels.append([i for i in range(len(label_id_maps['people'])) if label_id_maps['people'][i] == label][0])
         return boxes, labels
     elif name == 'car':
+        assert 'car' in label_id_maps
         with open(file_name, 'r') as f:
             data = json.load(f)
 
@@ -51,9 +53,10 @@ def get_sub_item(file_name, name, label_id_maps:dict):
             bbox_2d = obj['2d']['modal']  # 使用modal 2D边界框
             label = obj['label']
             boxes_2d.append(bbox_2d)
-            labels.append(label)
+            labels.append([i for i in range(len(label_id_maps['car'])) if label_id_maps['car'][i] == label][0])
         return boxes_2d, labels
     elif name == 'obj':
+        assert 'obj' in label_id_maps
         with open(file_name, 'r') as f:
             data = json.load(f)
         objects = data['objects']
@@ -61,7 +64,7 @@ def get_sub_item(file_name, name, label_id_maps:dict):
         labels = []
         for obj in objects:
             bboxes_2d.append(obj['bbox'])
-            labels.append(obj['label'])
+            labels.append([i for i in range(len(label_id_maps['obj'])) if label_id_maps['obj'][i] == obj['label']][0])
         return bboxes_2d, labels
     else:
         raise CustomError("Unknown name='" + name + "' while loading datasets")
@@ -84,7 +87,7 @@ def gen_file_list(dataset, path_pre, args, train_val_test):
 
 
 class MultiDataset(Dataset):
-    def __init__(self, dataset:str, path_pre:str, cv_tasks_args, cv_subsets_args, train_val_test:str, transform, label_id_maps:dict):
+    def __init__(self, dataset: str, path_pre: str, cv_tasks_args, cv_subsets_args, train_val_test: str, transform, label_id_maps: dict):
 
         # 任务和子集的名字和数量
         self.task_name = [cv_task_arg.name for cv_task_arg in cv_tasks_args]
@@ -118,7 +121,7 @@ class MultiDataset(Dataset):
 
 
 class SingleDataset(Dataset):
-    def __init__(self, dataset: str, path_pre: str, cv_task_arg, cv_subsets_args, train_val_test: str, transform, label_id_maps:dict):
+    def __init__(self, dataset: str, path_pre: str, cv_task_arg, cv_subsets_args, train_val_test: str, transform, label_id_maps: dict):
         super(SingleDataset, self).__init__()
         # 找到对应的文件夹
         # 注: 此处cv_task_arg仅包含对应任务的arg
@@ -147,17 +150,22 @@ class SingleDataset(Dataset):
         return data_item, label_item
 
 
-def collate_func(batch:list):
+def collate_func(batch: list):
     # Initialize a dictionary to store the batched data
-    batch_dict = {batch[0][1][subset]:[batch[no][0][subset] for no in range(len(batch))] for subset in range(len(batch[0][0]))}
+    batch_dict = {batch[0][1][subset]: [batch[no][0][subset] for no in range(len(batch))] for subset in range(len(batch[0][0]))}
     # Convert lists to tensors if necessary
     for subset_name, sub_items in batch_dict.items():
-        batch_dict[subset_name] = torch.stack(sub_items)
-    return batch_dict
+        if isinstance(sub_items[0], tuple):
+            bboxs = [torch.tensor(item[0], dtype=torch.float32) for item in sub_items]
+            labels = [torch.tensor(item[1], dtype=torch.int8) for item in sub_items]
+            batch_dict[subset_name] = {'bboxs': bboxs, 'labels': labels}
+        else:
+            batch_dict[subset_name] = torch.stack(sub_items)
+    return batch_dict, list(batch_dict.keys())
 
 
 class SensorDataset(Dataset):
-    def __init__(self, path_pre:str, cv_subset_args, worker_no:int, label_id_map:dict):
+    def __init__(self, path_pre: str, cv_subset_args, worker_no: int, label_id_map: dict):
         all_files = glob.glob(os.path.join(path_pre, 'gt_map', '*.txt'))
         content_list = []
         self.worker_no = worker_no
@@ -194,13 +202,13 @@ class SensorDataset(Dataset):
         sub_out = [self.transforms[i](sub_items[i]) for i in range(len(self.subset_name_list))]
         # return sub_out, self.subset_name_list
         if self.raining:
-            return {'input':[sub_out[i] for i in range(len(self.subset_name_list)) if self.subset_name_list[i] == 'rain'][0],
-                    'subsets':sub_out,
-                    'subset_names':self.subset_name_list}
+            return {'input': [sub_out[i] for i in range(len(self.subset_name_list)) if self.subset_name_list[i] == 'rain'][0],
+                    'subsets': sub_out,
+                    'subset_names': self.subset_name_list}
         else:
-            return {'input':[sub_out[i] for i in range(len(self.subset_name_list)) if self.subset_name_list[i] == 'left'][0],
-                    'subsets':sub_out,
-                    'subset_names':self.subset_name_list}
+            return {'input': [sub_out[i] for i in range(len(self.subset_name_list)) if self.subset_name_list[i] == 'left'][0],
+                    'subsets': sub_out,
+                    'subset_names': self.subset_name_list}
 
     def sense_a_frame(self):
         item = self.__getitem__(self.current_idx)

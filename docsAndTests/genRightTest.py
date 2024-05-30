@@ -56,7 +56,7 @@ if __name__ == "__main__":
         cv_subsets_args=args.cv_subsets_args,
         train_val_test='train',
         transform=transforms.Compose([transforms.ToTensor()]),
-        label_id_maps={args.cv_tasks_args[i].output:args.cv_tasks_args[i].label_id_map for i in range(len(args.cv_tasks_args))})
+        label_id_maps={args.cv_tasks_args[i].output:args.cv_tasks_args[i].label_id_map for i in range(len(args.cv_tasks_args)) if hasattr(args.cv_tasks_args[i], 'label_id_map')})
     val_set = SingleDataset(
         dataset='cityscapes',
         path_pre='..\cvDatasets',

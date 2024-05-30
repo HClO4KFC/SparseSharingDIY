@@ -37,7 +37,7 @@ class TrainTask:
 
     def grade(self):
         # TODO:评估当前任务收敛速度,用于在同等优先级下的任务调度
-        pass
+        return 1
 
     def is_same_as(self, train_task:'TrainTask'):
         if self.model != train_task.model or self.max_iter != train_task.max_iter or self.train_type != train_task.train_type:

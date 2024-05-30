@@ -59,12 +59,12 @@ if __name__ == '__main__':
         dataset=dataset_args.dataset_name, path_pre=dataset_args.path_pre,
         cv_tasks_args=cv_tasks_args, cv_subsets_args=cv_subsets_args,
         train_val_test='train', transform=transforms.Compose([transforms.ToTensor()]),
-        label_id_maps={cv_tasks_args[i].output:cv_tasks_args[i].label_id_map for i in range(len(cv_tasks_args))})
+        label_id_maps={cv_tasks_args[i].output:cv_tasks_args[i].label_id_map for i in range(len(cv_tasks_args)) if hasattr(cv_tasks_args[i], 'label_id_map')})
     multi_val_dataset = MultiDataset(
         dataset=dataset_args.dataset_name, path_pre=dataset_args.path_pre,
         cv_tasks_args=cv_tasks_args, cv_subsets_args=cv_subsets_args,
         train_val_test='val', transform=transforms.Compose([transforms.ToTensor()]),
-        label_id_maps={cv_tasks_args[i].output:cv_tasks_args[i].label_id_map for i in range(len(cv_tasks_args))})
+        label_id_maps={cv_tasks_args[i].output:cv_tasks_args[i].label_id_map for i in range(len(cv_tasks_args)) if hasattr(cv_tasks_args[i], 'label_id_map')})
     # 元数据集标注+元学习模型mtg-net训练(主动学习策略)
     parsed_data, meta_model = mtg_active_learning(
         multi_train_dataset=multi_train_dataset,

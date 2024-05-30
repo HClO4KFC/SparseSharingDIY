@@ -59,7 +59,7 @@ mgmt_args:
   sample_interval_sec: 10 #
 
 temp_args:
-  out_features: [1, 1, 1, 1, 1, 1, 1, 1, 1]
+  out_features: [3, 1, 1, 1, 1, 1, 1, 1, 1]
   warmup_iter: 10
 
 
@@ -88,7 +88,7 @@ cv_tasks_args:
       allocate: 1,
       num_classes: ,
       num_anchors: 9,
-      label_id_map:
+      label_id_map:[person group,sitting person,person (other),ignore,pedestrian,rider]
   }
   - {
       name: 'detCars',
@@ -97,7 +97,7 @@ cv_tasks_args:
       allocate: 1,
       num_classes: ,
       num_anchors: 9,
-      label_id_map:
+      label_id_map:[tunnel,caravan,truck,dynamic,motorcycle,car,bicycle,trailer,bus,train]
   }
   - {
       name: 'detObjs',
@@ -106,7 +106,7 @@ cv_tasks_args:
       allocate: 1,
       num_classes: ,
       num_anchors: 9,
-      label_id_map:
+      label_id_map: [tunnel,bus,caravan,truck,dynamic,car,sitting person,motorcycle,person group,person (other),bicycle,ignore,trailer,pedestrian,rider,train]
   }
   - {
       name: 'segInstance',

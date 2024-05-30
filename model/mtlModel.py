@@ -89,6 +89,7 @@ class ModelTree(torch.nn.Module):
                 mask = self.masks[ingroup_no][name]
                 masked_param = param * mask.float()
                 masked_params[name] = masked_param
+                assert masked_params[name].shape == param.shape
 
         # 保存并替换原参数为子层参数, 用子层参数做前向传播
         original_params = {}
@@ -97,6 +98,7 @@ class ModelTree(torch.nn.Module):
                 if name in masked_params:
                     original_params[name] = param.data.clone()
                     param.data.copy_(masked_params[name])
+                    assert param.shape == original_params[name].shape
 
         # 前向传播
         out = self.backbone(x)
