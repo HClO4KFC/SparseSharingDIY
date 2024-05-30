@@ -58,11 +58,13 @@ if __name__ == '__main__':
     multi_train_dataset = MultiDataset(
         dataset=dataset_args.dataset_name, path_pre=dataset_args.path_pre,
         cv_tasks_args=cv_tasks_args, cv_subsets_args=cv_subsets_args,
-        train_val_test='train', transform=transforms.Compose([transforms.ToTensor()]))
+        train_val_test='train', transform=transforms.Compose([transforms.ToTensor()]),
+        label_id_maps={cv_tasks_args[i].output:cv_tasks_args[i].label_id_map for i in range(len(cv_tasks_args))})
     multi_val_dataset = MultiDataset(
         dataset=dataset_args.dataset_name, path_pre=dataset_args.path_pre,
         cv_tasks_args=cv_tasks_args, cv_subsets_args=cv_subsets_args,
-        train_val_test='val', transform=transforms.Compose([transforms.ToTensor()]))
+        train_val_test='val', transform=transforms.Compose([transforms.ToTensor()]),
+        label_id_maps={cv_tasks_args[i].output:cv_tasks_args[i].label_id_map for i in range(len(cv_tasks_args))})
     # 元数据集标注+元学习模型mtg-net训练(主动学习策略)
     parsed_data, meta_model = mtg_active_learning(
         multi_train_dataset=multi_train_dataset,
@@ -84,7 +86,7 @@ if __name__ == '__main__':
     # pagerank获得任务重要性
     task_ranks, main_tasks = mtg_task_rank(
         task_num=task_num, mtg_model=meta_model, device='cuda:' + basic_args.gpu_id,
-        task_rank_args=task_rank_args,grouping=grouping)
+        task_rank_args=task_rank_args, grouping=grouping)
 
     # 初始化参数共享模型(掩膜全通,为硬参数共享)
     models = get_models(grouping=grouping, backbone_name=mtl_design_args.backbone,
@@ -131,17 +133,16 @@ if __name__ == '__main__':
     for end_device_no in range(end_device_num):
         loads = [i for i in range(len(task_allocation)) if task_allocation[i] == end_device_no]
         group_no_of_loads = [grouping[load] for load in loads]
-        grouped_loads = [[] for _ in range(max(grouping))]
-        for group_no in range(1, max(group_no_of_loads)):
+        grouped_loads = []
+        for group_no in range(max(grouping)):
             list_ = [load for load in loads if grouping[load] == group_no]
-            grouped_loads[group_no] = list_
+            grouped_loads.append(list_)
         overall_allocation.append(grouped_loads)
 
     # 启动工作进程(模拟端设备)
     queue_from_workers = multiprocessing.Queue()
     queue_to_workers = []
     workers = []
-    error_count = []
     # 小模型备份
     back_ups = []
     for end_device_no in range(len(overall_allocation)):
@@ -151,29 +152,31 @@ if __name__ == '__main__':
             tree_list=models, allocation=allocation,
             cv_subset_args=cv_subsets_args, cv_task_args=cv_tasks_args)
         back_ups.append(forrest_on_device)
-        worker_args = {'forrest':forrest_on_device, 'worker_no':end_device_no,
-                       'sample_interval':mgmt_args.sample_interval_sec,
-                       'queue_from_main':queue_to_workers[end_device_no],
-                       'queue_to_main':queue_from_workers}
+        worker_args = {'forrest': forrest_on_device, 'worker_no': end_device_no,
+                       'sample_interval': mgmt_args.sample_interval_sec,
+                       'queue_from_main': queue_to_workers[end_device_no],
+                       'queue_to_main': queue_from_workers}
         workers.append(multiprocessing.Process(
             target=worker,
             args=worker_args))
-        workers[i].start()
-        error_count.append(0)
+        workers[end_device_no].start()
 
+    # 保存运行时数据集,用于重训练
+    # 分为len(workers)个子列表,分别存放每个端设备传回的最近data_buf_size个数据.子列表元素包含n+1位,前n位是subsets,最后一位是输入
+    runtime_data_buf = [[] for _ in range(end_device_num)]
     # 开始持续演化,进程图worker(s)<=(<重分配)(抽样数据>)=>main<=(<重训结果)(重训任务>)=>train_manager<=(<重训结果)(重训任务)=>trainer(s)
     error_cnt = [0 for _ in range(task_num)]
     bias_cnt = [0 for _ in range(task_num)]
     # runtime_dataset_size = err_detect_args.runtime_dataset_size
     # runtime_dataset = [[None for _ in range(len(cv_subsets_args))] for _ in range(runtime_dataset_size)]
     # runtime_dataset_idx = 0
-    allocation = []
-    for model in models:
-        allocation.append(model.member)
-    models = ModelForrest(tree_list=models, allocation=allocation, cv_subset_args=cv_subsets_args, cv_task_args=cv_tasks_args)
-    # 封装edge分组共享模型群,与每个end device上的forrest同构,区别仅在于member多少
+    models = ModelForrest(tree_list=models, allocation=[model.member for model in models], cv_subset_args=cv_subsets_args, cv_task_args=cv_tasks_args)
+    related_tasks_lists = [
+        [task_id for task_id in range(task_num) if basic_args.distribution[task_id] == worker_no]
+        for worker_no in range(end_device_num)]
+    # 封装边缘上分组共享模型群, 与每个end device上的forrest同构, 区别仅在于member多少
     while True:
-        if not queue_from_workers.empty():  # 收到来自端设备的采样数据
+        if not queue_from_workers.empty():  # 收到来自某个端设备的采样数据
             new_message = queue_from_workers.get()
             # {'type': 'sample frame', 'sender': worker_no, 'data': data}
             msg_type = new_message['type']
@@ -182,16 +185,16 @@ if __name__ == '__main__':
             # {'input':[sub_out[i] for i in range(len(self.subset_name_list)) if self.subset_name_list[i] == 'rain'][0],
             #  'subsets':sub_out,
             #  'subset_names':self.subset_name_list}
-            related_task_list = [i for i in range(task_num) if basic_args.distribution[i] == msg_sender]
+            related_task_list = related_tasks_lists[msg_sender]
             targets = [teachers(task_id=task_id, msg_data=msg_data, cv_tasks_args=cv_tasks_args)
                        for task_id in related_task_list]  # 教师模型推理结果
-            model_id = [grouping[rel_task] for rel_task in related_task_list]
+            runtime_data_buf[msg_sender].append(targets)
             edge_output = models(msg_data['input'])
             edge_output_plain = [
                 [edge_output[group_no][item_no]
                  for group_no in range(len(edge_output))
                  for item_no in range(len(edge_output[group_no]))
-                 if models.task_mapping[group_no][item_no] == task_id][0]
+                 if models.models[group_no].member[item_no] == task_id][0]
                 for task_id in related_task_list
             ]
             end_output = back_ups[msg_sender](msg_data['input'])
@@ -199,12 +202,12 @@ if __name__ == '__main__':
                 [end_output[group_no][item_no]
                  for group_no in range(len(end_output))
                  for item_no in range(len(end_output[group_no]))
-                 if models.task_mapping[group_no][item_no] == task_id][0]
+                 if models.models[group_no].member[item_no] == task_id][0]
                 for task_id in related_task_list
             ]
             criterions = [task_info_list[rel_task].loss for rel_task in related_task_list]
+            # 一段时间内,边缘模型群效果总好于端设备模型群,则更新端设备模型群
             sub_bias = [criterions[idx](end_output_plain[idx], edge_output_plain[idx]) for idx in range(len(related_task_list))]
-            losses = [criterions[idx](edge_output_plain[idx], targets[idx]) for idx in range(len(related_task_list))]
             for list_idx in range(len(related_task_list)):
                 task_id = related_task_list[list_idx]
                 if sub_bias[list_idx] > err_detect_args.acc_threshold:
@@ -219,44 +222,41 @@ if __name__ == '__main__':
                         assert model_no is not None
                         new_model = models.models[model_no].get_part(back_up.models[model_no].member)
                         new_message = {
-                            'type':'model update',
-                            'update pack':{
-                                'model_no':model_no,
-                                'new_model':new_model
+                            'type': 'model update',
+                            'update pack': {
+                                'model_no': model_no,
+                                'new_model': new_model
                             }
                         }
                         back_up.update(new_message['type'], new_message['update pack'])
                         queue_to_workers[task_id].put(new_message)
-
-            # runtime_dataset[runtime_dataset_idx] = [None for _ in range(len(cv_subsets_args))]
-            # output_names = [cv_tasks_args[rel_task].output for rel_task in related_task_list]
-            # output_idxs = []
-            # for name in output_names:
-            #     index = [idx for idx in range(len(cv_tasks_args)) if cv_tasks_args[idx].name == name]
-            #     output_idxs.append(index)
-            # for idx in output_idxs:
-            #     runtime_dataset[runtime_dataset_idx][idx] = targets[idx]
+            # 将边缘模型与教师模型对比,判断数据飘移
+            losses = [criterions[idx](edge_output_plain[idx], targets[idx]) for idx in range(len(related_task_list))]
             for list_idx in range(len(related_task_list)):  # 飘移检测和任务发布
                 task_id = related_task_list[list_idx]
                 if losses[list_idx] > err_detect_args.acc_threshold:  # 出现单次偏移
                     error_cnt[task_id] += 1
                     if error_cnt[task_id] > err_detect_args.err_patience:  # 多次偏移,认定为数据飘移
+                        # 判断组内其他任务拟合是否良好, 决定采用哪种重训练方式
                         group_mates = [group_mate for group_mate in range(task_num) if grouping[group_mate] == grouping[task_id]]
                         group_avg_error = (np.sum([error_cnt[group_mate] for group_mate in group_mates]) - error_cnt[task_id]) / (len(group_mates) - 1)
                         evo_task = None
                         if group_avg_error < err_detect_args.regroup_beneath_percent * err_detect_args.err_patience:
                             # retrain = TODO: regroup
-                            retrain_args = {}
-                            retrain_task = TrainTask(model=models[group_no], cv_tasks=task_id,
+                            evo_args = {}
+                            evo_task = TrainTask(model=models[group_no], cv_tasks=task_id,
                                                      max_epoch=single_prune_args.max_iter,
                                                      train_type='reprune', args=retrain_args)
                         else:
                             # retrain = TODO: reprune
                             retrain_args = {}
-                            retrain_task = TrainTask(model=models[group_no], cv_tasks=task_id,
+                            evo_task = TrainTask(model=models[group_no], cv_tasks=task_id,
                                                      max_epoch=single_prune_args.max_iter,
                                                      train_type='reprune', args=retrain_args)
                         queue_to_train_manager.put(evo_task)
+                else:
+                    error_cnt[task_id] -= 1
+
             # task_id = new_sample_input['task_id']
             # bias_grade = new_sample_input['bias_grade']
             # biased_sample = new_sample_input['biased_sample']

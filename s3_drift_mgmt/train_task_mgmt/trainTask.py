@@ -22,19 +22,18 @@ class TrainTask:
     def solve(self):
         if self.train_type == 'idle':
             return
-        elif self.train_type == 'multi_task_train':
-            # 对多任务模型进行所有任务上的学习
-            self.solve_as_mtl_train()
-        elif self.train_type == 'multi_task_warmup':
-            self.solve_as_mtl_train()
-        elif self.train_type == 'single_task_prune':
-            # 学习多任务模型中的单任务子模型结构
-            self.solve_as_prune(
-                lr = self.args['lr'],
-                remain_percent=self.args['prune_remain_percent'],
-                decrease_percent=self.args['dec_percent'])
-        else:
-            raise CustomError("train_type "+self.train_type+" is not defined")
+        # elif self.train_type == 'multi_task_train':
+        #     # 对多任务模型进行所有任务上的学习
+        #     self.solve_as_mtl_train()
+        # elif self.train_type == 'multi_task_warmup':
+        #     self.solve_as_mtl_train()
+        # elif self.train_type == 'single_task_prune':
+        #     # 学习多任务模型中的单任务子模型结构
+        #     self.solve_as_prune(
+        #         remain_percent=self.args['prune_remain_percent'],
+        #         decrease_percent=self.args['dec_percent'])
+        # else:
+        #     raise CustomError("train_type "+self.train_type+" is not defined")
 
     def grade(self):
         # TODO:评估当前任务收敛速度,用于在同等优先级下的任务调度
@@ -59,7 +58,7 @@ class TrainTask:
             self.patience = 0
             return 0
 
-    def solve_as_prune(self, lr:float, remain_percent:float, decrease_percent:float, batch_num:int, batch_size:int, prune_lr:float):
+    def solve_as_prune(self, remain_percent:float, decrease_percent:float, batch_num:int, batch_size:int):
         # 在进行了一段时间的多任务学习后,模型拟合性更好,我们认为此时重新剪枝子网络得到的效果要优于随机初始化下的剪枝结果
         task_id = self.cv_tasks[0].no
         model = self.model
@@ -115,21 +114,98 @@ class TrainTask:
             model.heads[i].load_state_dict(original_heads[i])
 
     def solve_as_mtl_train(self, max_mtl_iter:int, train_type:str):
-        model=self.model
-        for i in range(max_mtl_iter):
-            cv_task = select_cv_task(member=model.member, tactic='simple', args={})
-            ingroup_no = model.member.index()
-            optimizer = model.optim[ingroup_no]
-            batch_x, batch_y = cv_task.get_next_batch(get_batch_size(cv_task=cv_task, train_type=train_type))
-            criterion = cv_task.loss
-            optimizer.zero_grad()
-            output = model(batch_x, cv_task)  # 子网前向传播
-            loss = criterion(output, batch_y)
-            loss.backward()
-            # 将不在子网中的参数梯度滤除, 仅更新子网参数
-            with torch.no_grad():
-                for name, param in model.backbone.get_named_parameters():
-                    if name in model.pruned_names:
-                        mask = model.masks[ingroup_no][name]
-                        param.grad *= mask.float()
-            optimizer.step()
+        # model=self.model
+        # for i in range(max_mtl_iter):
+        #     cv_task = select_cv_task(member=model.member, tactic='simple', args={})
+        #     ingroup_no = model.member.index()
+        #     optimizer = model.optim[ingroup_no]
+        #     batch_x, batch_y = cv_task.get_next_batch(get_batch_size(cv_task=cv_task, train_type=train_type))
+        #     criterion = cv_task.loss
+        #     optimizer.zero_grad()
+        #     output = model(batch_x, cv_task)  # 子网前向传播
+        #     loss = criterion(output, batch_y)
+        #     loss.backward()
+        #     # 将不在子网中的参数梯度滤除, 仅更新子网参数
+        #     with torch.no_grad():
+        #         for name, param in model.backbone.get_named_parameters():
+        #             if name in model.pruned_names:
+        #                 mask = model.masks[ingroup_no][name]
+        #                 param.grad *= mask.float()
+        #     optimizer.step()
+        pass
+
+    def solve_as_regroup(self, args):
+        # mtgnet_model = args['mtgnet_model']
+        # task_id = args['task_id']
+        # grouping = args['grouping']
+        # forrest_snapshot = args['forrest_snapshot']
+        # batch_x = []
+        # for group_no in range(max(grouping)):
+        #     member = [1 if grouping[i] == group_no else 0 for i in range(len(grouping))]
+        #     member[task_id] = 1
+        #     batch_x.append(member)
+        # batch_task_num = (torch.from_numpy(range(len(grouping)))).repeat(len(batch_x), 1)
+        # out = mtgnet_model(batch_x, batch_task_num)
+        # best_fit_no = [i for i in range(len(out)) if out[i] == max(out)][0]
+        #
+        # # 在快照上进行试训练,制作遮罩
+        # model = forrest_snapshot.models[best_fit_no]
+        # model.train()
+        # assert task_id in model.member
+        # ingroup_no = model.member.index(task_id)
+        # original_backbone = model.backbone.state_dict()
+        # original_heads = []
+        # for head in model.heads:
+        #     original_heads.append(head.state_dict())
+        # proportion = 1
+        # optimizer = model.optims[ingroup_no]
+        # criterion = task_info_list[task_id].loss
+        #
+        # # 初始化遮罩为全通, 子模型参数占比为100%
+        # for name, param in model.masks[ingroup_no].items():
+        #     with torch.no_grad():
+        #         param.data.fill_(True)
+        #
+        # for i in range(single_prune_args.max_iter):
+        #     # 在单轮i循环里,训练batch_num(k)批数据,然后按比例筛除一部分最小的参数,判断参数占比是否达标,达标则提前跳出
+        #     for batch_idx, (input, target) in enumerate(task_info_list[i].train_set):
+        #         if batch_idx > batch_per_iter:
+        #             break
+        #         # 在单轮j循环里,进行一批训练,仅用子网参与前向传播,也仅更新子网的参数
+        #         # # 将不在子网中的参数置为0
+        #         # with torch.no_grad():
+        #         #     for name, param in model.backbone.get_named_parameters():
+        #         #         if name in model.pruned_names:
+        #         #             mask = model.masks[ingroup_no][name]
+        #         #             param *= mask.float()
+        #         optimizer.zero_grad()
+        #         output_list = model(input, task_id)  # 子网前向传播
+        #         loss = criterion(output_list[ingroup_no], target)
+        #         loss.backward()
+        #         # 将不在子网中的参数梯度归零, 仅更新子网参数
+        #         with torch.no_grad():
+        #             for name, param in model.backbone.get_named_parameters():
+        #                 if name in model.pruned_names:
+        #                     mask = model.masks[ingroup_no][name]
+        #                     param.grad *= mask.float()
+        #         optimizer.step()
+        #     # 去掉绝对值最小的<dec_percent>%参数
+        #     for name, param in model.get_named_parameters():
+        #         if name in model.pruned_names:
+        #             all_items = param.data.abs().flatten()
+        #             threshold = torch.quantile(all_items, dec_percent / 100)
+        #             mask = model.masks[ingroup_no][name]
+        #             mask[param.data.abs() < threshold] = 0
+        #     proportion *= dec_percent / 100
+        #     main_task_tr = [task_ranks[main_id] for main_id in main_tasks if grouping[main_id] == grouping[task_id]][0]
+        #     if proportion <= max(least_percent / 100.0, task_ranks[task_id] / main_task_tr):
+        #         dict_lock.acquire_write()
+        #         shared_dict['mask'+str(task_id)] = model.masks[ingroup_no]
+        #         dict_lock.release_write()
+        #         print(f'任务{task_id}:{task_info_list[task_id].name}已剪枝完成并回传掩膜, 剩余参数{max(least_percent, task_ranks[task_id] / main_task_tr * 100.0)}%')
+        #         break
+        pass
+
+
+
+

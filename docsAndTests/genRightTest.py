@@ -55,23 +55,24 @@ if __name__ == "__main__":
         cv_task_arg=cv_task_arg,
         cv_subsets_args=args.cv_subsets_args,
         train_val_test='train',
+        transform=transforms.Compose([transforms.ToTensor()]),
+        label_id_maps={args.cv_tasks_args[i].output:args.cv_tasks_args[i].label_id_map for i in range(len(args.cv_tasks_args))})
+    val_set = SingleDataset(
+        dataset='cityscapes',
+        path_pre='..\cvDatasets',
+        cv_task_arg=cv_task_arg,
+        cv_subsets_args=args.cv_subsets_args,
+        train_val_test='val',
         transform=transforms.Compose([transforms.ToTensor()]))
-    # val_set = SingleDataset(
-    #     dataset='cityscapes',
-    #     path_pre='..\cvDatasets',
-    #     cv_task_arg=cv_task_arg,
-    #     cv_subsets_args=args.cv_subsets_args,
-    #     train_val_test='val',
-    #     transform=transforms.Compose([transforms.ToTensor()]))
     train_loader = DataLoader(
         dataset=train_set,
         batch_size=8,
         shuffle=True)
-    # val_loader = DataLoader(
-    #     dataset=val_set,
-    #     batch_size=8,
-    #     shuffle=False
-    # )
+    val_loader = DataLoader(
+        dataset=val_set,
+        batch_size=8,
+        shuffle=False
+    )
     # input_tensor = torch.randn(32, 3, 224, 224).cuda()  # 批量大小为32的输入图像
     # target_tensor = torch.randn(32, 3, 224, 224).cuda()  # 假设目标图像大小相同
 

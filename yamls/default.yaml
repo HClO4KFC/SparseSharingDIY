@@ -87,7 +87,8 @@ cv_tasks_args:
       output: 'people',
       allocate: 1,
       num_classes: ,
-      num_anchors: 9
+      num_anchors: 9,
+      label_id_map:
   }
   - {
       name: 'detCars',
@@ -95,7 +96,8 @@ cv_tasks_args:
       output: 'car',
       allocate: 1,
       num_classes: ,
-      num_anchors: 9
+      num_anchors: 9,
+      label_id_map:
   }
   - {
       name: 'detObjs',
@@ -103,7 +105,8 @@ cv_tasks_args:
       output: 'obj',
       allocate: 1,
       num_classes: ,
-      num_anchors: 9
+      num_anchors: 9,
+      label_id_map:
   }
   - {
       name: 'segInstance',

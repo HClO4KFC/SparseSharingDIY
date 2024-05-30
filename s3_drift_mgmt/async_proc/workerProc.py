@@ -23,7 +23,7 @@ def handle_hotkey(worker_id, sensor_dataset:SensorDataset):
         print(f"{worker_id} is no longer raining")
 
 
-def worker(args, dataset_path_pre, cv_subset_args):
+def worker(args, dataset_path_pre, cv_subset_args, cv_tasks_args):
     forrest = args['forrest']
     worker_no = args['worker_no']
     sample_interval = args['sample_interval']
@@ -31,7 +31,8 @@ def worker(args, dataset_path_pre, cv_subset_args):
     queue_to_main = args['queue_to_main']
     forrest.eval()
     last_time = time.time()
-    sensor = SensorDataset(path_pre=dataset_path_pre, cv_subset_args=cv_subset_args)
+    sensor = SensorDataset(path_pre=dataset_path_pre, cv_subset_args=cv_subset_args,
+                           label_id_map={args.cv_tasks_args[i].name:args.cv_tasks_args[i].label_id_map for i in range(len(args.cv_tasks_args))})
     keyboard.add_hotkey(str(worker_no), handle_hotkey, args=[worker_no, sensor])
     while True:
         if not queue_from_main.empty():

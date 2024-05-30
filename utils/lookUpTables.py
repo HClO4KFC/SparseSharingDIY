@@ -77,13 +77,15 @@ class CvTask:
                                        cv_task_arg=cv_task_arg,
                                        cv_subsets_args=cv_subsets_args,
                                        train_val_test='train',
-                                       transform=transforms.Compose([transforms.ToTensor()]))
+                                       transform=transforms.Compose([transforms.ToTensor()]),
+                                       label_id_maps={cv_task_arg.output:cv_task_arg.label_id_map} if hasattr(cv_task_arg, 'label_id_map') else {})
         self.val_set = SingleDataset(dataset=dataset_args.dataset_name,
                                      path_pre=dataset_args.path_pre,
                                      cv_task_arg=cv_task_arg,
                                      cv_subsets_args=cv_subsets_args,
                                      train_val_test='val',
-                                     transform=transforms.Compose([transforms.ToTensor()]))
+                                     transform=transforms.Compose([transforms.ToTensor()]),
+                                     label_id_maps={cv_task_arg.output:cv_task_arg.label_id_map} if hasattr(cv_task_arg, 'label_id_map') else {})
         # self.train_loader = DataLoader(dataset=self.train_set,
         #                                batch_size=dataset_args.batch_size,
         #                                shuffle=True,

@@ -10,7 +10,7 @@ from torchvision import transforms
 from utils.errReport import CustomError
 
 
-def get_sub_item(file_name, name):
+def get_sub_item(file_name, name, label_id_maps:dict):
     if name == 'left' \
             or name == 'right' \
             or name == 'disparity' \
@@ -84,7 +84,7 @@ def gen_file_list(dataset, path_pre, args, train_val_test):
 
 
 class MultiDataset(Dataset):
-    def __init__(self, dataset:str, path_pre:str, cv_tasks_args, cv_subsets_args, train_val_test:str, transform):
+    def __init__(self, dataset:str, path_pre:str, cv_tasks_args, cv_subsets_args, train_val_test:str, transform, label_id_maps:dict):
 
         # 任务和子集的名字和数量
         self.task_name = [cv_task_arg.name for cv_task_arg in cv_tasks_args]
@@ -103,6 +103,7 @@ class MultiDataset(Dataset):
             assert len(self.file_list[i]) == self.file_list_len
 
         # 数据变换
+        self.label_id_maps = label_id_maps
         self.transforms = [(transform if cv_subsets_args[i].ext == 'png' else transforms.Compose([])) for i in range(self.subset_num)]
         self.transforms[self.subset_name.index('left')] = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
@@ -111,13 +112,13 @@ class MultiDataset(Dataset):
 
     def __getitem__(self, index):
         file_names = [self.file_list[i][index] for i in range(self.subset_num)]  # 每个subset当前index文件名
-        sub_items = [get_sub_item(file_names[i], self.subsets_args[i].name) for i in range(self.subset_num)]  # 按文件名取得所存数据
+        sub_items = [get_sub_item(file_names[i], self.subsets_args[i].name, self.label_id_maps) for i in range(self.subset_num)]  # 按文件名取得所存数据
         sub_out = [self.transforms[i](sub_items[i]) for i in range(self.subset_num)]
         return sub_out, self.subset_name
 
 
 class SingleDataset(Dataset):
-    def __init__(self, dataset: str, path_pre: str, cv_task_arg, cv_subsets_args, train_val_test: str, transform):
+    def __init__(self, dataset: str, path_pre: str, cv_task_arg, cv_subsets_args, train_val_test: str, transform, label_id_maps:dict):
         super(SingleDataset, self).__init__()
         # 找到对应的文件夹
         # 注: 此处cv_task_arg仅包含对应任务的arg
@@ -130,6 +131,7 @@ class SingleDataset(Dataset):
         assert len(self.data_file_list) == len(self.label_file_list)
         self.length = len(self.data_file_list)
         self.transform = transform
+        self.label_id_maps = label_id_maps
 
     def __len__(self):
         return self.length
@@ -137,8 +139,8 @@ class SingleDataset(Dataset):
     def __getitem__(self, index):
         data_file_name = self.data_file_list[index]
         label_file_name = self.label_file_list[index]
-        data_item = get_sub_item(data_file_name, self.data_args.name)
-        label_item = get_sub_item(label_file_name, self.label_args.name)
+        data_item = get_sub_item(data_file_name, self.data_args.name, label_id_maps=self.label_id_maps)
+        label_item = get_sub_item(label_file_name, self.label_args.name, label_id_maps=self.label_id_maps)
         if self.transform is not None:
             data_item = self.transform(data_item)
             label_item = self.transform(label_item)
@@ -150,12 +152,12 @@ def collate_func(batch:list):
     batch_dict = {batch[0][1][subset]:[batch[no][0][subset] for no in range(len(batch))] for subset in range(len(batch[0][0]))}
     # Convert lists to tensors if necessary
     for subset_name, sub_items in batch_dict.items():
-        batch_dict[subset_name] = [torch.stack(items) for items in sub_items]
+        batch_dict[subset_name] = torch.stack(sub_items)
     return batch_dict
 
 
 class SensorDataset(Dataset):
-    def __init__(self, path_pre:str, cv_subset_args, worker_no:int):
+    def __init__(self, path_pre:str, cv_subset_args, worker_no:int, label_id_map:dict):
         all_files = glob.glob(os.path.join(path_pre, 'gt_map', '*.txt'))
         content_list = []
         self.worker_no = worker_no
@@ -177,6 +179,7 @@ class SensorDataset(Dataset):
             assert self.subset_file_list[i] == self.length
 
         # 数据变换
+        self.label_id_map = label_id_map
         transform = transforms.Compose(transforms.ToTensor())
         self.transforms = [(transform if cv_subset_args[i].ext == 'png' else transforms.Compose([])) for i in range(len(self.subset_name_list))]
         self.transforms[self.subset_name_list.index('left')] = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
@@ -187,7 +190,7 @@ class SensorDataset(Dataset):
 
     def __getitem__(self, index):
         file_names = [self.subset_file_list[i][index] for i in range(len(self.subset_name_list))]  # 每个subset当前index文件名
-        sub_items = [get_sub_item(file_names[i], self.subset_name_list[i]) for i in range(len(self.subset_name_list))]  # 按文件名取得所存数据
+        sub_items = [get_sub_item(file_names[i], self.subset_name_list[i], self.label_id_map) for i in range(len(self.subset_name_list))]  # 按文件名取得所存数据
         sub_out = [self.transforms[i](sub_items[i]) for i in range(len(self.subset_name_list))]
         # return sub_out, self.subset_name_list
         if self.raining:
