@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import omegaconf
 import torch.nn
 import torch.nn as nn
@@ -52,10 +53,10 @@ class DepthEstimationModel(torch.nn.Module):
 
 if __name__ == '__main__':
     iter_num = 200
-    args = omegaconf.OmegaConf.load('yamls\\default.yaml')
+    args = omegaconf.OmegaConf.load(os.path.join('yamls', 'default.yaml'))
     ds_trn = SingleDataset(
         dataset='cityscapes',
-        path_pre='..\cvDatasets',
+        path_pre=os.path.join('..','cvDatasets'),
         cv_task_arg=args.cv_tasks_args[0],
         cv_subsets_args=args.cv_subsets_args,
         train_val_test='train',
@@ -63,7 +64,7 @@ if __name__ == '__main__':
         label_id_maps={})
     ds_val = SingleDataset(
         dataset='cityscapes',
-        path_pre='..\cvDatasets',
+        path_pre=os.path.join('..','cvDatasets'),
         cv_task_arg=args.cv_tasks_args[0],
         cv_subsets_args=args.cv_subsets_args,
         train_val_test='val',
