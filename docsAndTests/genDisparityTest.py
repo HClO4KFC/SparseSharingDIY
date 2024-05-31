@@ -112,7 +112,10 @@ def main():
                     print('*', end='')
                 batch_y = model(batch_x)
                 loss = criterion(batch_y, batch_std)
-                val_loss_iter.append(loss)
+                batch_y.detach().cpu()
+                batch_std.detach().cpu()
+                batch_x.detach().cpu()
+                val_loss_iter.append(loss.detach().cpu())
             val_loss_sav.append(np.avg(val_loss_iter))
 
     # 准备数据
