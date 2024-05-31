@@ -51,7 +51,7 @@ class DepthEstimationModel(torch.nn.Module):
         return out
 
 
-if __name__ == '__main__':
+def main():
     iter_num = 200
     args = omegaconf.OmegaConf.load(os.path.join('yamls', 'default.yaml'))
     ds_trn = SingleDataset(
@@ -115,7 +115,6 @@ if __name__ == '__main__':
                 val_loss_iter.append(loss)
             val_loss_sav.append(np.avg(val_loss_iter))
 
-
     # 准备数据
     x1 = trn_loss_sav
     x2 = val_loss_sav
@@ -138,3 +137,7 @@ if __name__ == '__main__':
 
     # 显示图形
     plt.show()
+
+
+if __name__ == '__main__':
+    main()
