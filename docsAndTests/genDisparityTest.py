@@ -83,7 +83,7 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = DepthEstimationModel().to(device)
     optim = torch.optim.Adam(model.parameters())
-    criterion = torch.nn.L1Loss
+    criterion = torch.nn.L1Loss()
     trn_loss_sav = []
     val_loss_sav = []
     for iter in range(iter_num):
