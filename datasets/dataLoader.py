@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import torch
@@ -8,6 +9,20 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 
 from utils.errReport import CustomError
+
+
+def split_path(path):
+    parts = []
+    while True:
+        path, tail = os.path.split(path)
+        if tail:
+            parts.append(tail)
+        else:
+            if path:
+                parts.append(path)
+            break
+    parts.reverse()
+    return parts
 
 
 def get_sub_item(file_name, name, label_id_maps: dict):
@@ -174,13 +189,13 @@ class SensorDataset(Dataset):
         self.subset_name_list = [cv_subset_args[i].name for i in range(len(cv_subset_args))]
         self.subset_name_list.append('rain')
         for i in range(len(cv_subset_args)):
-            content_list.append([file for file in all_files if file.split('\\')[-1].split('.')[0] == cv_subset_args[i].name][0])
+            content_list.append([file for file in all_files if split_path(file)[-1].split('.')[0] == cv_subset_args[i].name][0])
         self.subset_file_list = [[] for _ in cv_subset_args]
         for content in content_list:
             # 逐行读取文件
             with open(content, "r") as file:
                 self.subset_file_list.append([line.strip() for line in file])
-        with open([file for file in all_files if file.split('\\')[-1].split('.')[0] == 'rain'][0]) as file:
+        with open([file for file in all_files if split_path(file)[-1].split('.')[0] == 'rain'][0]) as file:
             self.subset_file_list.append([line.strip() for line in file])
         self.length = len(self.subset_file_list[0])
         for i in range(len(self.subset_file_list)):
