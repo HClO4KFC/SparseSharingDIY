@@ -28,12 +28,13 @@ def split_path(path):
 def get_sub_item(file_name, name, label_id_maps: dict):
     if name == 'left' \
             or name == 'right' \
-            or name == 'disparity' \
             or name == 'rain':
         # 读取单/三通道图片: leftImg8bit为左眼相机原图, rightImg8bit为右眼相机原图
         # image = Image.open(file_name).convert('RGB')
         # trans = transforms.Compose([transforms.ToTensor()])  # 定义数据预处理模式
         ans_tensor = Image.open(file_name).convert('RGB')
+    elif name == 'disparity':
+        ans_tensor = Image.open(file_name)
     elif name == 'instance' \
             or name == 'label' \
             or name == 'panoptic':
