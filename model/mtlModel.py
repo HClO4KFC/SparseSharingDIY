@@ -17,7 +17,7 @@ def build_backbone(backbone_name):
         out_channels = model.out_channels
     elif backbone_name == 'ResNet50':
         # model = resnet50()
-        model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
+        model = models.resnet50(weights=models.MobileNet_V3_Small_Weights.DEFAULT)
         model = torch.nn.Sequential(*list(model.children())[:-2])
         out_channels = model[-1][-1].conv3.out_channels
     elif backbone_name == 'ResNet101':

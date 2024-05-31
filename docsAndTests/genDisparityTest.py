@@ -51,24 +51,31 @@ class DepthEstimationModel(torch.nn.Module):
         return out
 
 
+class ToFloat16Tensor(transforms.ToTensor):
+    def __call__(self, pic):
+        # 将 PIL 图像或 numpy 数组转换为 torch tensor
+        tensor = super().__call__(pic)
+        return tensor.to(torch.float16)
+
+
 def main():
     iter_num = 200
     args = omegaconf.OmegaConf.load(os.path.join('yamls', 'default.yaml'))
     ds_trn = SingleDataset(
         dataset='cityscapes',
-        path_pre=os.path.join('..','cvDatasets'),
+        path_pre=os.path.join('..', 'cvDatasets'),
         cv_task_arg=args.cv_tasks_args[0],
         cv_subsets_args=args.cv_subsets_args,
         train_val_test='train',
-        transform=transforms.Compose([transforms.ToTensor()]),
+        transform=transforms.Compose([ToFloat16Tensor()]),
         label_id_maps={})
     ds_val = SingleDataset(
         dataset='cityscapes',
-        path_pre=os.path.join('..','cvDatasets'),
+        path_pre=os.path.join('..', 'cvDatasets'),
         cv_task_arg=args.cv_tasks_args[0],
         cv_subsets_args=args.cv_subsets_args,
         train_val_test='val',
-        transform=transforms.Compose([transforms.ToTensor()]),
+        transform=transforms.Compose([ToFloat16Tensor()]),
         label_id_maps={})
     trn_loader = DataLoader(
         dataset=ds_trn,
@@ -81,7 +88,7 @@ def main():
         batch_size=1
     )
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = DepthEstimationModel().to(device)
+    model = DepthEstimationModel().half().to(device)
     optim = torch.optim.Adam(model.parameters())
     criterion = torch.nn.L1Loss()
     trn_loss_sav = []
