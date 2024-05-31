@@ -26,6 +26,10 @@ def build_backbone(backbone_name):
     elif backbone_name == 'ResNet152':
         model = resnet152()
         out_channels = model.out_channels
+    elif backbone_name == 'MobileNetV3Small':
+        model = models.mobilenet_v3_small(pretrained=True)
+        model = torch.nn.Sequential(*list(model.children())[:-2])
+        out_channels = list(model.children())[0][-1][0].out_channels
     else:
         raise CustomError("backbone " + backbone_name + " is not implemented yet")
     return model, out_channels

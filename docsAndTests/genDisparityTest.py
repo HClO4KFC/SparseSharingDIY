@@ -42,7 +42,7 @@ class DepthEstimationHead(nn.Module):
 class DepthEstimationModel(torch.nn.Module):
     def __init__(self):
         super(DepthEstimationModel, self).__init__()
-        self.backbone, out_channels = build_backbone('ResNet18')
+        self.backbone, out_channels = build_backbone('MobileNetV3Small')
         self.head = DepthEstimationHead(num_input_channels=out_channels, num_output_channels=1)
 
     def forward(self, x):
@@ -102,9 +102,7 @@ def main():
             loss.backward()
             trn_loss_iter.append(loss.detach().cpu())
             optim.step()
-            batch_y.detach().cpu()
-            batch_std.detach().cpu()
-            batch_x.detach().cpu()
+            del batch_x, batch_y, batch_std
         trn_loss_sav.append(np.avg(trn_loss_iter))
         model.eval()
         val_loss_iter = []
