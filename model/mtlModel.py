@@ -1,6 +1,8 @@
 import copy
 
 import torch.nn
+from torch import nn
+from torch.nn import init
 from torchvision import models
 
 from utils.errReport import CustomError
@@ -17,7 +19,7 @@ def build_backbone(backbone_name):
         out_channels = model.out_channels
     elif backbone_name == 'ResNet50':
         # model = resnet50()
-        model = models.resnet50(weights=models.MobileNet_V3_Small_Weights.DEFAULT)
+        model = models.resnet50(pretrained=True)
         model = torch.nn.Sequential(*list(model.children())[:-2])
         out_channels = model[-1][-1].conv3.out_channels
     elif backbone_name == 'ResNet101':
@@ -27,9 +29,19 @@ def build_backbone(backbone_name):
         model = resnet152()
         out_channels = model.out_channels
     elif backbone_name == 'MobileNetV3Small':
-        model = models.mobilenet_v3_small(pretrained=True)
+        model = models.mobilenet_v3_small(pre_trained=False)
         model = torch.nn.Sequential(*list(model.children())[:-2])
         out_channels = list(model.children())[0][-1][0].out_channels
+
+        # 定义一个函数来应用He初始化
+        def initialize_weights_he(m):
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    init.constant_(m.bias, 0)
+
+        # 应用He初始化
+        model.apply(initialize_weights_he)
     else:
         raise CustomError("backbone " + backbone_name + " is not implemented yet")
     return model, out_channels
@@ -42,7 +54,8 @@ def build_head(cv_task_arg, in_size, out_size):
 
 
 class ModelTree(torch.nn.Module):
-    def __init__(self, backbone_name:str, member:list, out_features:list, prune_names:list, cv_tasks_args, no_mask=False):
+    def __init__(self, backbone_name: str, member: list, out_features: list, prune_names: list, cv_tasks_args,
+                 no_mask=False):
         super(ModelTree, self).__init__()
         self.no_mask = no_mask
         self.backbone, backbone_out_channels = build_backbone(backbone_name)
@@ -55,7 +68,8 @@ class ModelTree(torch.nn.Module):
         self.masks = []
         self.optims = []
         for i in member:
-            head, head_name = build_head(cv_task_arg=cv_tasks_args[i], in_size=backbone_out_channels, out_size=out_features[i])
+            head, head_name = build_head(cv_task_arg=cv_tasks_args[i], in_size=backbone_out_channels,
+                                         out_size=out_features[i])
             self.heads.append(head)
             self.head_names.append(head_name)
             mask = {name: torch.nn.Parameter(torch.ones(named_param.size()).to(named_param).bool(), requires_grad=False)
@@ -120,7 +134,7 @@ class ModelTree(torch.nn.Module):
         out = self.heads[ingroup_no](out)
         return out
 
-    def get_part(self, allocation:list):
+    def get_part(self, allocation: list):
         ans = copy.deepcopy(self)
         set_a = set(ans.member)
         set_b = set(allocation)
@@ -136,22 +150,26 @@ class ModelTree(torch.nn.Module):
             self.optims.pop(del_idx)
         return ans
 
-    def get_subset_mapping(self, io:str, cv_subset_args, cv_task_args):
+    def get_subset_mapping(self, io: str, cv_subset_args, cv_task_args):
         if io == 'input':
-            ans = [[subset_no for subset_no in range(len(cv_subset_args)) if cv_subset_args[subset_no].name == cv_task_args[member].input][0] for member in self.member]
+            ans = [[subset_no for subset_no in range(len(cv_subset_args)) if
+                    cv_subset_args[subset_no].name == cv_task_args[member].input][0] for member in self.member]
         elif io == 'output':
-            ans = [[subset_no for subset_no in range(len(cv_subset_args)) if cv_subset_args[subset_no].name == cv_task_args[member].output][0] for member in self.member]
+            ans = [[subset_no for subset_no in range(len(cv_subset_args)) if
+                    cv_subset_args[subset_no].name == cv_task_args[member].output][0] for member in self.member]
         else:
             assert False
         return ans
 
 
 class ModelForrest(torch.nn.Module):
-    def __init__(self, tree_list:list, allocation:list, cv_subset_args, cv_task_args):
+    def __init__(self, tree_list: list, allocation: list, cv_subset_args, cv_task_args):
         super(ModelForrest, self).__init__()
         self.models = [tree_list[i].get_part(allocation[i]) for i in range(len(tree_list))]
-        self.input_subset_mapping = [self.models[i].get_subset_mapping('input', cv_subset_args, cv_task_args) for i in range(len(self.models))]
-        self.output_subset_mapping = [self.models[i].get_subset_mapping('output', cv_subset_args, cv_task_args) for i in range(len(self.models))]
+        self.input_subset_mapping = [self.models[i].get_subset_mapping('input', cv_subset_args, cv_task_args) for i in
+                                     range(len(self.models))]
+        self.output_subset_mapping = [self.models[i].get_subset_mapping('output', cv_subset_args, cv_task_args) for i in
+                                      range(len(self.models))]
         self.task_mapping = [self.models[i].member for i in range(len(self.models))]
         # self.backbone = copy.deepcopy(model.backbone)
         # self.head = copy.deepcopy(model.heads[ingroup_no])
@@ -168,7 +186,7 @@ class ModelForrest(torch.nn.Module):
     def get_tree_list(self):
         return self.models
 
-    def update(self, update_type:str, update_pack:dict):
+    def update(self, update_type: str, update_pack: dict):
         if update_type == 'model update':
             model_id = update_pack['model_id']
             new_model = update_pack['new_model']
@@ -177,5 +195,4 @@ class ModelForrest(torch.nn.Module):
                 assert self.models[model_id].member[i] == new_model.member[i]
             self.models[model_id] = new_model  # [new_model.get_part(allocation[i]) for i in range(len(tree_list))]
         else:
-            raise CustomError('unknown update type: '+update_type)
-
+            raise CustomError('unknown update type: ' + update_type)

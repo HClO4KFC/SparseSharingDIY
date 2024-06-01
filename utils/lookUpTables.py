@@ -3,6 +3,7 @@ import torch
 from torchvision.transforms import transforms
 
 from datasets.dataLoader import SingleDataset
+from model.heads import AllTransConvHead
 from utils.errReport import CustomError
 
 
@@ -24,9 +25,14 @@ def use_which_optimizer(task_id: int, args: dict):
 
 def use_which_head(task_name: str, in_features: int, out_features: int):
     # in build_head(), calculate the need head structure of model
-    print('实现use_which_head')
-    return torch.nn.Linear(in_features=in_features, out_features=out_features), 'SingleLinear'
-
+    if task_name == 'genDisparity' or task_name == 'genRightCam':
+        head = AllTransConvHead(in_channels=in_features, out_channels=out_features)
+        name = 'AllTransConvHead'
+    else:
+        print('实现use_which_head')
+        head = torch.nn.Linear(in_features=in_features, out_features=out_features)
+        name = 'SingleLinear'
+    return head, name
 
 def get_max_patience(train_task_type: str):
     # in TrainTask.tolerate(), get the max time of tolerance before the task got upgraded

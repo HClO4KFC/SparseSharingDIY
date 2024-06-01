@@ -8,6 +8,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
+from datasets.imgShow import async_img_display
 from utils.errReport import CustomError
 
 
@@ -34,7 +35,9 @@ def get_sub_item(file_name, name, label_id_maps: dict):
         # trans = transforms.Compose([transforms.ToTensor()])  # 定义数据预处理模式
         ans_tensor = Image.open(file_name).convert('RGB')
     elif name == 'disparity':
-        ans_tensor = Image.open(file_name)
+        ans_tensor = Image.open(file_name, mode='r')
+        # ans_tensor = ans_tensor.convert('L')
+        ans_tensor.show()
     elif name == 'instance' \
             or name == 'label' \
             or name == 'panoptic':
@@ -137,7 +140,7 @@ class MultiDataset(Dataset):
 
 
 class SingleDataset(Dataset):
-    def __init__(self, dataset: str, path_pre: str, cv_task_arg, cv_subsets_args, train_val_test: str, transform, label_id_maps: dict):
+    def __init__(self, dataset: str, path_pre: str, cv_task_arg, cv_subsets_args, train_val_test: str, in_transform, out_transform, label_id_maps: dict):
         super(SingleDataset, self).__init__()
         # 找到对应的文件夹
         # 注: 此处cv_task_arg仅包含对应任务的arg
@@ -149,7 +152,8 @@ class SingleDataset(Dataset):
         self.label_file_list = gen_file_list(dataset, path_pre, self.label_args, train_val_test)
         assert len(self.data_file_list) == len(self.label_file_list)
         self.length = len(self.data_file_list)
-        self.transform = transform
+        self.in_transform = in_transform
+        self.out_transform = out_transform
         self.label_id_maps = label_id_maps
 
     def __len__(self):
@@ -158,11 +162,16 @@ class SingleDataset(Dataset):
     def __getitem__(self, index):
         data_file_name = self.data_file_list[index]
         label_file_name = self.label_file_list[index]
+        async_img_display(data_file_name, 'RGB')
+        async_img_display(label_file_name, 'L')
+        print(f'data:{data_file_name}')
+        print(f'label:{label_file_name}')
         data_item = get_sub_item(data_file_name, self.data_args.name, label_id_maps=self.label_id_maps)
         label_item = get_sub_item(label_file_name, self.label_args.name, label_id_maps=self.label_id_maps)
-        if self.transform is not None:
-            data_item = self.transform(data_item)
-            label_item = self.transform(label_item)
+        if self.in_transform is not None:
+            data_item = self.in_transform(data_item)
+        if self.out_transform is not None:
+            label_item = self.out_transform(label_item)
         return data_item, label_item
 
 
