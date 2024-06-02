@@ -6,15 +6,12 @@ import omegaconf
 import numpy as np
 import torch
 
-# 添加项目根目录到 Python 路径
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
 from datasets.voc12.my_dataset import VOCDataSet
 from dlfip.pytorch_segmentation.fcn.my_dataset import VOCSegmentation
 from dlfip.pytorch_segmentation.fcn.train import get_transform, SegmentationPresetTrain, SegmentationPresetEval
 from s2_continuous_sharing.MultiTaskTrain import multi_task_train
 from s3_drift_mgmt.simTeacherModels import teachers
-from train_utils import create_aspect_ratio_groups, GroupedBatchSampler
+from train_utils.group_by_aspect_ratio import create_aspect_ratio_groups, GroupedBatchSampler
 from utils.lookUpTables import CvTask
 from torchvision import transforms
 
