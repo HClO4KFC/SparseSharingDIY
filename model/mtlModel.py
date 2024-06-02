@@ -5,8 +5,8 @@ from torch import nn
 from torch.nn import init
 from torchvision import models
 
-from dlfip.pytorch_object_detection.faster_rcnn.backbone import MobileNetV2
-from dlfip.pytorch_object_detection.faster_rcnn.network_files import FasterRCNN, FastRCNNPredictor
+from dlfip.pytorch_object_detection.faster_rcnn.backbone.mobilenetv2_model import MobileNetV2
+from dlfip.pytorch_object_detection.faster_rcnn.network_files.faster_rcnn_framework import FasterRCNN, FastRCNNPredictor
 from dlfip.pytorch_segmentation.fcn.src.fcn_model import FCNHead, FCN
 from model.resnet_mtl.create_mtl_resnet50 import mtl_resnet50_backbone
 from utils.errReport import CustomError
