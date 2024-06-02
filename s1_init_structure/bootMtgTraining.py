@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 
 from datasets.dataLoader import MultiDataset, collate_func
 from dlfip.pytorch_object_detection.faster_rcnn.train_utils.train_eval_utils import train_one_epoch
-from dlfip.pytorch_segmentation.fcn.train_utils import create_lr_scheduler, fcn_train_one_epoch, evaluate
+from dlfip.pytorch_segmentation.fcn.train_utils.train_and_eval import create_lr_scheduler, fcn_train_one_epoch, evaluate
 from model.mtlModel import ModelTree
 from s1_init_structure.mtg_net.transformer import HOINetTransformer
 from poor_old_things.trainEvalTest import mtg_training
