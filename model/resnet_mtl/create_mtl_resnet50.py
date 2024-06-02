@@ -9,7 +9,7 @@ def mtl_resnet50_backbone(
         replace_stride_with_dilation,
         aux,
         norm_layer=FrozenBatchNorm2d,
-        trainable_layers=3,
+        trainable_layers=5,
         returned_layers=None,
         extra_blocks=None):
 

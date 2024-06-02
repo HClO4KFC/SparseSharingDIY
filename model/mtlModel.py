@@ -28,7 +28,7 @@ def build_backbone(backbone_name):
         model = mtl_resnet50_backbone(
             aux=False,
             norm_layer=torch.nn.BatchNorm2d,
-            trainable_layers=3,
+            trainable_layers=5,
             replace_stride_with_dilation=[False, True, True],
             returned_layers=None,
             extra_blocks=None)
@@ -97,7 +97,8 @@ class ModelTree(torch.nn.Module):
                 pass
             mask = {name: torch.nn.Parameter(torch.ones(named_param.size()).to(named_param).bool(), requires_grad=False)
                     for name, named_param in self.backbone.named_parameters()
-                    if name in prune_names}
+                    if named_param.requires_grad}
+                    # if name in prune_names}
             self.masks.append(mask)
             self.tasks.append(model)
 

@@ -18,13 +18,13 @@ def try_mtl_train(data_loaders, backbone: str, grouping: list, out_features: lis
     # 输入: 一个分组方案grouping,其中在分组中的任务记作1,不在的记作0
     # 输出: 尝试将这些任务分为一组进行硬参数共享训练一定轮次后,得到各任务的loss向量
     member = [i for i in range(len(grouping)) if grouping[i] == 1]
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = ModelTree(
         backbone_name=backbone,
         member=member,
         out_features=out_features,
         prune_names=[],
-        cv_tasks_args=cv_tasks_args)
-    data_iters = [iter(dl) for dl in data_loaders]
+        cv_tasks_args=cv_tasks_args).to(device=device)
     optims = []
     scheduler = []
     for i in range(len(member)):
@@ -185,6 +185,7 @@ def mtg_active_learning(dataloaders, init_grp_args, mtgnet_args,
         in_test_list[binList2Int(x)] = False
     print('单任务训练中...')
     for x in baseline_x:
+        x = (torch.Tensor(x)).to(device)
         baseline_output = try_mtl_train(data_loaders=dataloaders, grouping=x, try_epoch_num=try_epoch_num,
                                         backbone=backbone, out_features=out_features, cv_tasks_args=cv_task_args)
         assert len([i for i in baseline_output if i != 0]) == 1
