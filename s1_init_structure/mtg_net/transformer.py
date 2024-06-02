@@ -19,6 +19,7 @@ class HOINetTransformer(nn.Module):
         # 之间的共适应（co-adaptation），降低模型的复
         # 杂度,可以减少过拟合,增强泛化能力,提高健壮性。
         super(HOINetTransformer, self).__init__()
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model_dim = model_dim
         # (共用的) transformer 编码模块
         self.encoder_layers = nn.ModuleList([
@@ -29,13 +30,13 @@ class HOINetTransformer(nn.Module):
                 dim_per_head=model_dim,
                 dropout=dropout,
                 task_dim=task_dim
-            ).to('cuda:0')
+            ).to(self.device)
             for _ in range(num_layers)
         ])
         # (不共用的) 倒数第二层,全连接层,任务相关输出
         self.task_output = [
             nn.Linear(ffn_dim, 1)
-            .to('cuda:0')
+            .to(self.device)
             for _ in range(task_dim)
         ]
         # (共用的) 最后一层,全连接层,任务无关的最终输出(为什么这样设计?)
@@ -58,7 +59,7 @@ class HOINetTransformer(nn.Module):
         attentions = []
         for encoder in self.encoder_layers:
             output, attention = encoder(output, inputs)
-            pass_mask = torch.ones(len(inputs[0])).to('cuda:0')  # 测试输出不需要注意力屏蔽
+            pass_mask = torch.ones(len(inputs[0])).to(self.device)  # 测试输出不需要注意力屏蔽
             test_output, test_attention = encoder(test_output[0].unsqueeze(0), pass_mask)
             attentions.append(attention)
         task_embedding = self.task_embedding(index)[0]

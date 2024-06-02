@@ -40,7 +40,7 @@ def create_model(num_classes):
 
 def main():
     # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    device = torch.device('cuda:0')
+    device = torch.device('cpu')
     print("Using {} device training.".format(device.type))
 
     # 用来保存coco_info的文件

@@ -39,7 +39,7 @@ class IntermediateLayerGetter(nn.ModuleDict):
         orig_return_layers = return_layers
         return_layers = {str(k): str(v) for k, v in return_layers.items()}
 
-        # 重新构建backbone，将没有使用到的模块全部删掉
+        # 检测是否所有声明被需要的return_layer都被保留在model中
         layers = OrderedDict()
         for name, module in model.named_children():
             layers[name] = module
@@ -88,18 +88,18 @@ class FCN(nn.Module):
         features = self.backbone(x)
 
         result = OrderedDict()
-        x = features["out"]
+        x = features["3"]
         x = self.classifier(x)
         # 原论文中虽然使用的是ConvTranspose2d，但权重是冻结的，所以就是一个bilinear插值
         x = F.interpolate(x, size=input_shape, mode='bilinear', align_corners=False)
         result["out"] = x
 
         if self.aux_classifier is not None:
-            x = features["aux"]
+            x = features["3"]
             x = self.aux_classifier(x)
             # 原论文中虽然使用的是ConvTranspose2d，但权重是冻结的，所以就是一个bilinear插值
             x = F.interpolate(x, size=input_shape, mode='bilinear', align_corners=False)
-            result["aux"] = x
+            result["3"] = x
 
         return result
 

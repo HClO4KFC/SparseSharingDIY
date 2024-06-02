@@ -10,7 +10,7 @@ from lxml import etree
 class VOCDataSet(Dataset):
     """读取解析PASCAL VOC2007/2012数据集"""
 
-    def __init__(self, voc_root, year="2012", transforms=None, txt_name: str = "train.txt"):
+    def __init__(self, voc_root, txt_name: str, class_map_path: str, year="2012", transforms=None):
         assert year in ["2007", "2012"], "year must be in ['2007', '2012']"
         # 增加容错能力
         self.root = os.path.join(voc_root, "VOCdevkit", f"VOC{year}")
@@ -46,7 +46,7 @@ class VOCDataSet(Dataset):
         assert len(self.xml_list) > 0, "in '{}' file does not find any information.".format(txt_path)
 
         # read class_indict
-        json_file = './pascal_voc_classes.json'
+        json_file = class_map_path
         assert os.path.exists(json_file), "{} file not exist.".format(json_file)
         with open(json_file, 'r') as f:
             self.class_dict = json.load(f)

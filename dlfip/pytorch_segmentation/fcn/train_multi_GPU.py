@@ -5,7 +5,7 @@ import datetime
 import torch
 
 from src import fcn_resnet50
-from train_utils import train_one_epoch, evaluate, create_lr_scheduler, init_distributed_mode, save_on_master, mkdir
+from train_utils import fcn_train_one_epoch, evaluate, create_lr_scheduler, init_distributed_mode, save_on_master, mkdir
 from my_dataset import VOCSegmentation
 import transforms as T
 
@@ -167,8 +167,8 @@ def main(args):
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
-        mean_loss, lr = train_one_epoch(model, optimizer, train_data_loader, device, epoch,
-                                        lr_scheduler=lr_scheduler, print_freq=args.print_freq, scaler=scaler)
+        mean_loss, lr = fcn_train_one_epoch(model, optimizer, train_data_loader, device, epoch,
+                                            lr_scheduler=lr_scheduler, print_freq=args.print_freq, scaler=scaler)
 
         confmat = evaluate(model, val_data_loader, device=device, num_classes=num_classes)
         val_info = str(confmat)

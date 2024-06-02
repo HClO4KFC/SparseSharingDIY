@@ -58,33 +58,6 @@ class ParsedDataset:
         return self.x_test, self.y_test, self.mask_test
 
 
-def data_parse(dataset, step, device, train_index, trn_x, trn_y):
-    print("parsing data.")
-
-    # x, y, x_test_source, y_test_source = get_dataset(dataset)
-    x = trn_x
-    y = trn_y
-    x_test_source = copy.deepcopy(x)
-    y_test_source = copy.deepcopy(y)
-
-    end_num = int((len(x[0]) * (len(x[0]) - 1)) / (2 * step))  # 确定训练主循环的次数
-
-    # 选择所有两两分组和全集分组方案加入训练集, 其余为验证集
-    trn_samp_idx = []  # 训练集序号
-    eval_samp_idx = []
-    # pairwise_gain = np.zeros((len(x[0]), len(x[0])))
-    for i in range(len(x)):
-        # if i < train_index:
-        #     eval_samp_idx.append(i)
-        # else:
-        #     trn_samp_idx.append(i)
-        trn_samp_idx.append(i)
-
-    parsed_dataset = ParsedDataset(dataset, device, x, y, trn_samp_idx, eval_samp_idx, x_test_source, y_test_source)
-
-    return end_num, parsed_dataset
-
-
 def get_dataset(dataset):
     print('loading', dataset)
 

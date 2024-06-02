@@ -134,7 +134,7 @@ def overwrite_eps(model, eps):
             module.eps = eps
 
 
-def resnet50_fpn_backbone(pretrain_path="",
+def resnet50_fpn_backbone(pretrain_path=os.path.join('dlfip', 'pytorch_object_detection', 'faster_rcnn', 'backbone', 'resnet50.pth'),
                           norm_layer=FrozenBatchNorm2d,  # FrozenBatchNorm2d的功能与BatchNorm2d类似，但参数无法更新
                           trainable_layers=3,
                           returned_layers=None,
@@ -156,6 +156,7 @@ def resnet50_fpn_backbone(pretrain_path="",
     resnet_backbone = ResNet(Bottleneck, [3, 4, 6, 3],
                              include_top=False,
                              norm_layer=norm_layer)
+    # return _resnet(Bottleneck, [3, 4, 6, 3], **kwargs)
 
     if isinstance(norm_layer, FrozenBatchNorm2d):
         overwrite_eps(resnet_backbone, 0.0)

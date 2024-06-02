@@ -1,13 +1,13 @@
 import numpy as np
 import torch
-
-from poor_old_things.data_parsing.mtgDataParse import data_parse, data_shuffle, ParsedDataset
+#
+# from poor_old_things.data_parsing.mtgDataParse import data_parse, data_shuffle, ParsedDataset
 from poor_old_things.details.trainDetails import train_base, update_ensemble
 from poor_old_things.details.evalDetails import eval_and_test
 
 
 def mtg_training(model:torch.nn.Module, ensemble_num, dataset_name,
-                 gpu_id, step, end_num, trn_x:list, trn_y:list)->tuple[ParsedDataset, list]:
+                 gpu_id, step, end_num, trn_x:list, trn_y:list):
 
     # 将用于保存最后一次训练中的任务嵌入信息和编码器层输出
     task_embedding_list = []
@@ -23,19 +23,8 @@ def mtg_training(model:torch.nn.Module, ensemble_num, dataset_name,
     overall_pred_traj = []
     overall_mask_traj = []
 
-    device = 'cuda:' + gpu_id
+    device = torch.device('cuda:' + gpu_id if torch.cuda.is_available() else 'cpu')
     print(device)
-
-    suggested_end_num, parsed_data = data_parse(dataset_name, step, device, trn_x, trn_y)
-
-    if end_num < 0:
-        end_num = suggested_end_num
-    # 默认参数为-1,意为按照建议截止批次进行
-
-    if end_num < suggested_end_num:
-        print('warning: end_num is suggested to be at least', suggested_end_num, ', now', end_num)
-    else:
-        print('the program will end after iter', end_num)
 
     # 设置训练参数
     train_batch_size = 128  # (训练过程中)每批处理这么多个分组方案x
@@ -52,6 +41,7 @@ def mtg_training(model:torch.nn.Module, ensemble_num, dataset_name,
     iter_test_loss = np.array([])
     patience_loss = 100  # 能容忍的最大损失函数值
     patience = 0  # 记录loss停止下降的epoch次数
+
 
     # 随机打乱训练集
     x_train, y_train, mask_train = data_shuffle(*parsed_data.get_train_set())
