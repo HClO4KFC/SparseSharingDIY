@@ -1,9 +1,13 @@
 import multiprocessing
 import os
+import sys
 
 import omegaconf
 import numpy as np
 import torch
+
+# 添加项目根目录到 Python 路径
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from datasets.voc12.my_dataset import VOCDataSet
 from dlfip.pytorch_segmentation.fcn.my_dataset import VOCSegmentation
