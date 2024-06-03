@@ -4,7 +4,6 @@ import os
 import pickle
 import random
 import sys
-import time
 
 import omegaconf
 import numpy as np
@@ -148,7 +147,7 @@ def set_seed(seed):
 
 
 def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
-    try_epoch_num = 1#5
+    try_epoch_num = 5
     try_batch_num = None
     print_freq = 10
     lr = 0.01
@@ -159,9 +158,7 @@ def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
     # 单任务
     single_losses = [None for _ in range(len(grouping))]
     multi_losses = [None for _ in range(len(grouping))]
-    start_time = time.time()
-    print(f'single task start time: {start_time}')
-    for i in range(1, len(grouping)):
+    for i in range(len(grouping)):
         this_group = [1 if k == i else 0 for k in range(len(grouping))]
         print(f'单任务过程{this_group}:')
         loss = try_mtl_train(
@@ -171,20 +168,15 @@ def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
             print_freq=print_freq, cv_tasks_args=cv_tasks_args,
             lr=lr, aux=aux, amp=amp, results_path_pre='./test1', with_eval=with_eval)
         single_losses = [loss[i] if this_group[i] == 1 else single_losses[i]]
-    end_time = time.time()
-    print(f'single task end time: {end_time}')
-    print(f'single task total time{str(start_time - end_time)}')
-    m_start_time = time.time()
-    # for i in range(1, max(grouping) + 1):
-    #     this_group = [1 if grouping[k] == i else 0 for k in range(len(grouping))]
-    #     loss = try_mtl_train(
-    #         train_loaders=train_loaders, val_loaders=val_loaders,
-    #         backbone='ResNet50', grouping=this_group, out_features=[],
-    #         try_epoch_num=try_epoch_num, try_batch_num=try_batch_num,
-    #         print_freq=print_freq, cv_tasks_args=cv_tasks_args,
-    #         lr=lr, aux=aux, amp=amp, results_path_pre='./test1', with_eval=with_eval)
-    #     multi_losses = [loss[i] if this_group[i] == 1 else multi_losses[i]]
-    m_end_time = time.time()
+    for i in range(1, max(grouping) + 1):
+        this_group = [1 if grouping[k] == i else 0 for k in range(grouping)]
+        loss = try_mtl_train(
+            train_loaders=train_loaders, val_loaders=val_loaders,
+            backbone='ResNet50', grouping=this_group, out_features=[],
+            try_epoch_num=try_epoch_num, try_batch_num=try_batch_num,
+            print_freq=print_freq, cv_tasks_args=cv_tasks_args,
+            lr=lr, aux=aux, amp=amp, results_path_pre='./test1', with_eval=with_eval)
+        multi_losses = [loss[i] if this_group[i] == 1 else multi_losses[i]]
     pass
 
 
@@ -208,7 +200,7 @@ if __name__ == '__main__':
     set_seed(0)
     # cal basic info
     task_num = 5
-    batch_size = 1
+    batch_size = 6
 
     # 初始化任务描述(内置单任务数据集和加载器)
     # task_info_list = [CvTask(no=i, dataset_args=dataset_args,
@@ -260,7 +252,7 @@ if __name__ == '__main__':
     #     prune_names=[],
     #     cv_tasks_args=None
     # )
-    # start_time = time.time()
+
     # all_x, all_y, meta_model = mtg_active_learning(
     #     train_loaders=train_loaders,
     #     val_loaders=val_loaders,
@@ -272,13 +264,6 @@ if __name__ == '__main__':
     #     out_features=temp_args.out_features,
     #     cv_task_args=cv_tasks_args)
     #
-    # # 波束搜索确定共享组的划分
-    # print('finish the init_grouping with beam-search method...')
-    # grouping = mtg_beam_search(
-    #     task_num=task_num, mtg_model=meta_model,
-    #     device=torch.device('cuda:' + basic_args.gpu_id if torch.cuda.is_available() else 'cpu'),
-    #     beam_width=beam_search_args.beam_width)
-    # end_time = time.time()
     # torch.save(meta_model.state_dict(), 'meta_model.pth')
     # save_dict = {}
     # save_dict['all_x'] = all_x
@@ -287,6 +272,12 @@ if __name__ == '__main__':
     # with open('meta_model_data.pkl', 'wb') as f:
     #     pickle.dump(save_dict, f)
     #
+    # # 波束搜索确定共享组的划分
+    # print('finish the init_grouping with beam-search method...')
+    # grouping = mtg_beam_search(
+    #     task_num=task_num, mtg_model=meta_model,
+    #     device=torch.device('cuda:' + basic_args.gpu_id if torch.cuda.is_available() else 'cpu'),
+    #     beam_width=beam_search_args.beam_width)
     grouping = [1, 3, 3, 3, 2]
 
     exp_multi_task_train(grouping=grouping, train_loaders=train_loaders, cv_tasks_args=cv_tasks_args, val_loaders=val_loaders)

@@ -149,7 +149,7 @@ def set_seed(seed):
 
 def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
     try_epoch_num = 1#5
-    try_batch_num = None
+    try_batch_num = 1
     print_freq = 10
     lr = 0.01
     aux = True
@@ -161,7 +161,7 @@ def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
     multi_losses = [None for _ in range(len(grouping))]
     start_time = time.time()
     print(f'single task start time: {start_time}')
-    for i in range(1, len(grouping)):
+    for i in range(len(grouping)):
         this_group = [1 if k == i else 0 for k in range(len(grouping))]
         print(f'单任务过程{this_group}:')
         loss = try_mtl_train(
@@ -208,7 +208,7 @@ if __name__ == '__main__':
     set_seed(0)
     # cal basic info
     task_num = 5
-    batch_size = 1
+    batch_size = 3
 
     # 初始化任务描述(内置单任务数据集和加载器)
     # task_info_list = [CvTask(no=i, dataset_args=dataset_args,
@@ -260,33 +260,33 @@ if __name__ == '__main__':
     #     prune_names=[],
     #     cv_tasks_args=None
     # )
-    # start_time = time.time()
-    # all_x, all_y, meta_model = mtg_active_learning(
-    #     train_loaders=train_loaders,
-    #     val_loaders=val_loaders,
-    #     init_grp_args=init_grp_args,
-    #     mtgnet_args=mtgnet_args,
-    #     dataset_name=dataset_args.dataset_name,
-    #     gpu_id=basic_args.gpu_id,
-    #     backbone=mtl_design_args.backbone,
-    #     out_features=temp_args.out_features,
-    #     cv_task_args=cv_tasks_args)
-    #
-    # # 波束搜索确定共享组的划分
-    # print('finish the init_grouping with beam-search method...')
-    # grouping = mtg_beam_search(
-    #     task_num=task_num, mtg_model=meta_model,
-    #     device=torch.device('cuda:' + basic_args.gpu_id if torch.cuda.is_available() else 'cpu'),
-    #     beam_width=beam_search_args.beam_width)
-    # end_time = time.time()
-    # torch.save(meta_model.state_dict(), 'meta_model.pth')
-    # save_dict = {}
-    # save_dict['all_x'] = all_x
-    # save_dict['all_y'] = all_y
-    # save_dict['init_grp_args'] = init_grp_args
-    # with open('meta_model_data.pkl', 'wb') as f:
-    #     pickle.dump(save_dict, f)
-    #
+    start_time = time.time()
+    all_x, all_y, meta_model = mtg_active_learning(
+        train_loaders=train_loaders,
+        val_loaders=val_loaders,
+        init_grp_args=init_grp_args,
+        mtgnet_args=mtgnet_args,
+        dataset_name=dataset_args.dataset_name,
+        gpu_id=basic_args.gpu_id,
+        backbone=mtl_design_args.backbone,
+        out_features=temp_args.out_features,
+        cv_task_args=cv_tasks_args)
+
+    # 波束搜索确定共享组的划分
+    print('finish the init_grouping with beam-search method...')
+    grouping = mtg_beam_search(
+        task_num=task_num, mtg_model=meta_model,
+        device=torch.device('cuda:' + basic_args.gpu_id if torch.cuda.is_available() else 'cpu'),
+        beam_width=beam_search_args.beam_width)
+    end_time = time.time()
+    torch.save(meta_model.state_dict(), 'meta_model.pth')
+    save_dict = {}
+    save_dict['all_x'] = all_x
+    save_dict['all_y'] = all_y
+    save_dict['init_grp_args'] = init_grp_args
+    with open('meta_model_data.pkl', 'wb') as f:
+        pickle.dump(save_dict, f)
+
     grouping = [1, 3, 3, 3, 2]
 
     exp_multi_task_train(grouping=grouping, train_loaders=train_loaders, cv_tasks_args=cv_tasks_args, val_loaders=val_loaders)
