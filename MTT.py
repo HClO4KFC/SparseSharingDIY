@@ -200,7 +200,7 @@ if __name__ == '__main__':
     set_seed(0)
     # cal basic info
     task_num = 5
-    batch_size = 12
+    batch_size = 6
 
     # 初始化任务描述(内置单任务数据集和加载器)
     # task_info_list = [CvTask(no=i, dataset_args=dataset_args,
