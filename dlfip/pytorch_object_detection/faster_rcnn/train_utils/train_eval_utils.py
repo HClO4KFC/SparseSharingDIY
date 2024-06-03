@@ -27,6 +27,7 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, try_batch_num=
     for i, [images, targets] in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
         if try_batch_num is not None and i >= try_batch_num:
             break
+        print(f'file_name = {data_loader.dataset.xml_list[i]}')
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 

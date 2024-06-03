@@ -74,13 +74,13 @@ def get_obj_det_dl(task_no:int, batch_size:int):
         # 如果按照图片高宽比采样图片，dataloader中需要使用batch_sampler
         train_data_loader = torch.utils.data.DataLoader(train_dataset,
                                                         batch_sampler=train_batch_sampler,
-                                                        pin_memory=True,
+                                                        pin_memory=False,
                                                         num_workers=nw,
                                                         collate_fn=train_dataset.collate_fn)
     else:
         train_data_loader = torch.utils.data.DataLoader(train_dataset,
                                                         batch_size=batch_size,
-                                                        shuffle=True,
+                                                        shuffle=False,
                                                         pin_memory=True,
                                                         num_workers=nw,
                                                         collate_fn=train_dataset.collate_fn)
@@ -150,7 +150,7 @@ def set_seed(seed):
 def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
     try_epoch_num = 1#5
     try_batch_num = None
-    print_freq = 10
+    print_freq = 1
     lr = 0.01
     aux = True
     amp = True
