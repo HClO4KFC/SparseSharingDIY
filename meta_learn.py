@@ -260,36 +260,36 @@ if __name__ == '__main__':
     #     prune_names=[],
     #     cv_tasks_args=None
     # )
-    start_time = time.time()
-    all_x, all_y, meta_model = mtg_active_learning(
-        train_loaders=train_loaders,
-        val_loaders=val_loaders,
-        init_grp_args=init_grp_args,
-        mtgnet_args=mtgnet_args,
-        dataset_name=dataset_args.dataset_name,
-        gpu_id=basic_args.gpu_id,
-        backbone=mtl_design_args.backbone,
-        out_features=temp_args.out_features,
-        cv_task_args=cv_tasks_args)
+    for mtg_upd_freq in [1, 2, 5]:
+        init_grp_args.mtgnet_upd_freq = mtg_upd_freq
+        start_time = time.time()
+        all_x, all_y, meta_model = mtg_active_learning(
+            train_loaders=train_loaders,
+            val_loaders=val_loaders,
+            init_grp_args=init_grp_args,
+            mtgnet_args=mtgnet_args,
+            dataset_name=dataset_args.dataset_name,
+            gpu_id=basic_args.gpu_id,
+            backbone=mtl_design_args.backbone,
+            out_features=temp_args.out_features,
+            cv_task_args=cv_tasks_args)
 
-    # 波束搜索确定共享组的划分
-    print('finish the init_grouping with beam-search method...')
-    grouping = mtg_beam_search(
-        task_num=task_num, mtg_model=meta_model,
-        device=torch.device('cuda:' + basic_args.gpu_id if torch.cuda.is_available() else 'cpu'),
-        beam_width=beam_search_args.beam_width)
-    end_time = time.time()
-    torch.save(meta_model.state_dict(), 'meta_model.pth')
-    save_dict = {}
-    save_dict['all_x'] = all_x
-    save_dict['all_y'] = all_y
-    save_dict['init_grp_args'] = init_grp_args
-    with open('meta_model_data.pkl', 'wb') as f:
-        pickle.dump(save_dict, f)
+        # 波束搜索确定共享组的划分
+        print('finish the init_grouping with beam-search method...')
+        grouping = mtg_beam_search(
+            task_num=task_num, mtg_model=meta_model,
+            device=torch.device('cuda:' + basic_args.gpu_id if torch.cuda.is_available() else 'cpu'),
+            beam_width=beam_search_args.beam_width)
+        end_time = time.time()
+        print(f"mtg_upd_freq={mtg_upd_freq}, get{grouping} after {str(end_time - start_time)}")
 
-    grouping = [1, 3, 3, 3, 2]
-
-    exp_multi_task_train(grouping=grouping, train_loaders=train_loaders, cv_tasks_args=cv_tasks_args, val_loaders=val_loaders)
+        torch.save(meta_model.state_dict(), f'meta_model__mtg_upd_freq_{mtg_upd_freq}.pth')
+        save_dict = {}
+        save_dict['all_x'] = all_x
+        save_dict['all_y'] = all_y
+        save_dict['init_grp_args'] = init_grp_args
+        with open('meta_model_data__mtg_upd_freq_{mtg_upd_freq}.pkl', 'wb') as f:
+            pickle.dump(save_dict, f)
 
     # try_mtl_train(
     #     train_loaders=train_loaders, val_loaders=val_loaders,

@@ -170,6 +170,8 @@ class VOCDataSet(Dataset):
         labels = []
         iscrowd = []
         for obj in data["object"]:
+            if obj['name'] not in self.class_dict:
+                continue
             xmin = float(obj["bndbox"]["xmin"])
             xmax = float(obj["bndbox"]["xmax"])
             ymin = float(obj["bndbox"]["ymin"])
