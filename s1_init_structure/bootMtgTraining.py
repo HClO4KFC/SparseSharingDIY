@@ -100,7 +100,10 @@ def try_mtl_train(train_loaders:list, val_loaders:list, backbone: str, grouping:
                     print(f'val_info:{val_info}')
                     # write into txt
                     if results_path_pre is not None:
-                        with open(os.path.join(results_path_pre, f'"{member}"grouped_{str(i)}th_result.txt'), "a") as f:
+                        file_name = '_'.join(str(member).split(',')[1:-1])+f'grouped_{str(i)}th_result.txt'
+                        if not os.path.exists(results_path_pre):
+                            os.makedirs(results_path_pre)
+                        with open(os.path.join(results_path_pre, file_name), "a") as f:
                             # 记录每个epoch对应的train_loss、lr以及验证集各指标
                             train_info = f"[epoch: {epoch}]\n" \
                                          f"train_loss: {mean_loss:.4f}\n" \
@@ -113,7 +116,7 @@ def try_mtl_train(train_loaders:list, val_loaders:list, backbone: str, grouping:
                                  "epoch": epoch}
                     if amp:
                         save_file["scaler"] = scalers[ingroup_no].state_dict()
-                    torch.save(save_file, f'./save_weights/"{member}"grouped_{str(i)}th_model[{epoch}].pth')
+                    torch.save(save_file, f'./save_weights/{"_".join(str(member).split(",")[1:-1])}_grouped_{str(i)}th_model_{epoch}.pth')
             else:
                 # calc loss of faster-rcnn
                 mean_loss, lr = train_one_epoch(
@@ -136,7 +139,11 @@ def try_mtl_train(train_loaders:list, val_loaders:list, backbone: str, grouping:
 
                     # write into txt
                     if results_path_pre is not None:
-                        with open(os.path.join(results_path_pre, f'"{member}"grouped_{str(i)}th_result.txt'), "a") as f:
+                        file_name = '_'.join(str(member).split(',')[1:-1])+f'_grouped_{str(i)}th_result.txt'
+                        # 1_2_3_grouped_1th_result.txt
+                        if not os.path.exists(results_path_pre):
+                            os.makedirs(results_path_pre)
+                        with open(os.path.join(results_path_pre, file_name), "a") as f:
                             # 写入的数据包括coco指标还有loss和learning rate
                             result_info = [f"{i:.4f}" for i in coco_info + [mean_loss.item()]] + [f"{lr:.6f}"]
                             txt = "epoch:{} {}".format(epoch, '  '.join(result_info))
@@ -152,7 +159,8 @@ def try_mtl_train(train_loaders:list, val_loaders:list, backbone: str, grouping:
                         'epoch': epoch}
                     if amp:
                         save_files["scaler"] = [scaler.state_dict() for scaler in scalers]
-                    torch.save(save_files, f'./save_weights/"{member}"grouped_{str(i)}th_model[{epoch}].pth')
+                    torch.save(save_files, f'./save_weights/{"_".join(str(member).split(",")[1:-1])}_grouped_{str(i)}th_model_{epoch}.pth')
+                    # 1_2_3_grouped_1th_model_0.pth
 
     ans_loss = [train_loss[i][-1] for i in range(len(member))]
     ans = [None for _ in range(len(grouping))]
