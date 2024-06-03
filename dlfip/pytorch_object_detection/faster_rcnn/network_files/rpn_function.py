@@ -221,7 +221,7 @@ class RPNHead(nn.Module):
     def __init__(self, in_channels, num_anchors):
         super(RPNHead, self).__init__()
         # 3x3 滑动窗口
-        self.conv = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
+        self.conv = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1, dtype=torch.float32)
         # 计算预测的目标分数（这里的目标只是指前景或者背景）
         self.cls_logits = nn.Conv2d(in_channels, num_anchors, kernel_size=1, stride=1)
         # 计算预测的目标bbox regression参数
@@ -601,7 +601,7 @@ class RegionProposalNetwork(torch.nn.Module):
         """
         # RPN uses all feature maps that are available
         # features是所有预测特征层组成的OrderedDict
-        features = list(features.values())
+        features = list(features[0].values())
 
         # 计算每个预测特征层上的预测目标概率和bboxes regression参数
         # objectness和pred_bbox_deltas都是list

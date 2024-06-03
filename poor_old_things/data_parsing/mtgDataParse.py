@@ -9,18 +9,32 @@ from utils.errReport import CustomError
 class ParsedDataset:
     def __init__(self, dataset, device, x, y, trn_samp_idx, eval_samp_idx, x_test_source, y_test_source):
         mask = copy.deepcopy(x)
-        self.x_train = x[trn_samp_idx]
-        self.y_train = y[trn_samp_idx]
-        self.mask_train = mask[trn_samp_idx]
+        assert len(x) == len(y)
+        for l in range(len(y)):
+            for item in range(len(y[l])):
+                if y[l][item] is None:
+                    y[l][item] = 0
+        for l in range(len(y_test_source)):
+            for item in range(len(y_test_source[l])):
+                if y_test_source[l][item] is None:
+                    y_test_source[l][item] = 0
+        self.x_train = x[trn_samp_idx] if trn_samp_idx is not None else x
+        self.y_train = y[trn_samp_idx] if trn_samp_idx is not None else y
+        self.mask_train = mask[trn_samp_idx] if trn_samp_idx is not None else mask
 
-        self.x_eval = x[eval_samp_idx]
-        self.y_eval = y[eval_samp_idx]
-        self.mask_eval = mask[eval_samp_idx]
+        self.x_eval = x[eval_samp_idx] if eval_samp_idx is not None else x
+        self.y_eval = y[eval_samp_idx] if eval_samp_idx is not None else y
+        self.mask_eval = mask[eval_samp_idx] if eval_samp_idx is not None else mask
         if dataset == '27tasks':
             self.x_test = x_test_source
             self.y_test = y_test_source
             self.mask_test = copy.deepcopy(self.x_test)
         elif dataset == 'cityscapes':
+            self.x_test = x_test_source
+            self.y_test = y_test_source
+            self.mask_test = copy.deepcopy(self.x_test)
+        elif dataset == 'pascalVOC2012' \
+            or dataset == 'pascalVOC2007':
             self.x_test = x_test_source
             self.y_test = y_test_source
             self.mask_test = copy.deepcopy(self.x_test)
@@ -30,8 +44,8 @@ class ParsedDataset:
             self.y_test = y_test_source[test_samp_idx]
             self.mask_test = copy.deepcopy(self.x_test)
 
-        self.trn_size = len(trn_samp_idx)
-        self.eval_size = len(eval_samp_idx)
+        self.trn_size = len(self.x_train)
+        self.eval_size = len(self.x_eval)
         self.test_size = len(self.x_test)
         self.task_num = len(x[0])
         self.task_id_repeated = torch.from_numpy(np.array(range(len(x[0]))))

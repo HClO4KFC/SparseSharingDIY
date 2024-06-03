@@ -1,5 +1,8 @@
+import argparse
 import multiprocessing
 import os
+import pickle
+import random
 import sys
 
 import omegaconf
@@ -15,7 +18,7 @@ from train_utils.group_by_aspect_ratio import create_aspect_ratio_groups, Groupe
 from utils.lookUpTables import CvTask
 from torchvision import transforms
 
-from s1_init_structure.bootMtgTraining import mtg_active_learning
+from s1_init_structure.bootMtgTraining import mtg_active_learning, try_mtl_train
 from s1_init_structure.beamSearch import mtg_beam_search
 from datasets.dataLoader import MultiDataset
 from s1_init_structure.taskRank import mtg_task_rank
@@ -24,7 +27,7 @@ from s2_continuous_sharing.prunerProc import pruner
 from s3_drift_mgmt.async_proc.workerProc import worker
 from s3_drift_mgmt.train_task_mgmt.trainTask import TrainTask
 from s3_drift_mgmt.async_proc.trainManagerProc import train_manager
-from model.mtlModel import ModelForrest
+from model.mtlModel import ModelForrest, ModelTree
 from s1_init_structure.initModelForrest import get_models
 
 
@@ -38,7 +41,7 @@ def get_obj_det_dl(task_no:int):
     # VOC数据集根目录
     VOC_root = os.path.join("dlfip", "pascalVOC")  # VOCdevkit
     aspect_ratio_group_factor = 3
-    batch_size = 8
+    batch_size = 1
     amp = False  # 是否使用混合精度训练，需要GPU支持
 
     # check voc root
@@ -51,7 +54,7 @@ def get_obj_det_dl(task_no:int):
     train_dataset = VOCDataSet(voc_root=VOC_root, year='2012',
                                class_map_path=class_map_path,
                                transforms=data_transform["train"],
-                               txt_name="train.txt")
+                               txt_name=f"objdet{str(task_no)}_train.txt")
     train_sampler = None
 
     # 是否按图片相似高宽比采样图片组成batch
@@ -84,10 +87,10 @@ def get_obj_det_dl(task_no:int):
 
     # load validation data set
     # VOCdevkit -> VOC2012 -> ImageSets -> Main -> val.txt
-    val_dataset = VOCDataSet(VOC_root, year="2012", transforms=data_transform["val"], txt_name="val.txt",
+    val_dataset = VOCDataSet(VOC_root, year="2012", transforms=data_transform["val"], txt_name=f"objdet{str(task_no)}_val.txt",
                              class_map_path=class_map_path)
     val_data_loader = torch.utils.data.DataLoader(val_dataset,
-                                                  batch_size=1,
+                                                  batch_size=batch_size,
                                                   shuffle=False,
                                                   pin_memory=True,
                                                   num_workers=nw,
@@ -124,10 +127,62 @@ def get_seg_dl(batch_size:int, data_path):
                                              collate_fn=val_dataset.collate_fn)
     return train_dataset, val_dataset, train_loader, val_loader
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--yaml', type=str, default='default.yaml')
+    args = parser.parse_args()
+    return omegaconf.OmegaConf.load(os.path.join('yamls', args.yaml))
+
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+
+def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
+    try_epoch_num = 100
+    try_batch_num = None
+    print_freq = 10
+    lr = 0.01
+    aux = True
+    amp = True
+    with_eval = True
+    print("正在进行单任务与多任务训练的对比...")
+    # 单任务
+    single_losses = [None for _ in range(len(grouping))]
+    multi_losses = [None for _ in range(len(grouping))]
+    for i in range(len(grouping)):
+        this_group = [1 if k == i else 0 for k in range(len(grouping))]
+        print(f'单任务过程{this_group}:')
+        loss = try_mtl_train(
+            train_loaders=train_loaders, val_loaders=val_loaders,
+            backbone='ResNet50', grouping=this_group, out_features=[],
+            try_epoch_num=try_epoch_num, try_batch_num=try_batch_num,
+            print_freq=print_freq, cv_tasks_args=cv_tasks_args,
+            lr=lr, aux=aux, amp=amp, results_path_pre='./test1', with_eval=with_eval)
+        single_losses = [loss[i] if this_group[i] == 1 else single_losses[i]]
+    for i in range(1, max(grouping) + 1):
+        this_group = [1 if grouping[k] == i else 0 for k in range(grouping)]
+        loss = try_mtl_train(
+            train_loaders=train_loaders, val_loaders=val_loaders,
+            backbone='ResNet50', grouping=this_group, out_features=[],
+            try_epoch_num=try_epoch_num, try_batch_num=try_batch_num,
+            print_freq=print_freq, cv_tasks_args=cv_tasks_args,
+            lr=lr, aux=aux, amp=amp, results_path_pre='./test1', with_eval=with_eval)
+        multi_losses = [loss[i] if this_group[i] == 1 else multi_losses[i]]
+    pass
+
 
 if __name__ == '__main__':
-    # args = get_args()
-    args = omegaconf.OmegaConf.load('yamls/default.yaml')
+    args = get_args()
     basic_args = args.basic_args
     dataset_args = args.dataset_args
     mtgnet_args = args.mtgnet_args
@@ -141,15 +196,11 @@ if __name__ == '__main__':
     mgmt_args = args.mgmt_args
     temp_args = args.temp_args
     cv_tasks_args = args.cv_tasks_args
-    cv_subsets_args = args.cv_subsets_args
+    # cv_subsets_args = args.cv_subsets_args
 
-    # fix the seed
-    np.random.seed(basic_args.seed)
-    torch.manual_seed(basic_args.seed)
-    torch.cuda.manual_seed_all(basic_args.seed)
-
+    set_seed(0)
     # cal basic info
-    task_num = len(cv_tasks_args)
+    task_num = 5
 
     # 初始化任务描述(内置单任务数据集和加载器)
     # task_info_list = [CvTask(no=i, dataset_args=dataset_args,
@@ -166,7 +217,7 @@ if __name__ == '__main__':
     val_loaders = []
 
     # TODO:任务种类:语义分割
-    seg_batch_size = 8
+    seg_batch_size = 1
     seg_trn_set, seg_val_set, seg_trn_loader, seg_val_loader = get_seg_dl(batch_size=seg_batch_size, data_path=data_path)
     train_loaders.append(seg_trn_loader)
     val_loaders.append(seg_val_loader)
@@ -178,6 +229,10 @@ if __name__ == '__main__':
         obj_det_trn_set, obj_det_val_set, obj_det_trn_loater, obj_det_val_loater = get_obj_det_dl(task_no=task_no)
         train_loaders.append(obj_det_trn_loater)
         val_loaders.append(obj_det_val_loater)
+    # obj_det_trn_set, obj_det_val_set, obj_det_trn_loater, obj_det_val_loater = get_obj_det_dl(task_no=1)
+    # for task_no in range(1, 5):
+    #     train_loaders.append(obj_det_trn_loater)
+    #     val_loaders.append(obj_det_val_loater)
 
 
     # multi_train_dataset = MultiDataset(
@@ -191,33 +246,66 @@ if __name__ == '__main__':
     #     train_val_test='val', transform=transforms.Compose([transforms.ToTensor()]),
     #     label_id_maps={cv_tasks_args[i].output:cv_tasks_args[i].label_id_map for i in range(len(cv_tasks_args)) if hasattr(cv_tasks_args[i], 'label_id_map')})
     # 元数据集标注+元学习模型mtg-net训练(主动学习策略)
-    parsed_data, meta_model = mtg_active_learning(
-        dataloaders=train_loaders,
-        init_grp_args=init_grp_args,
-        mtgnet_args=mtgnet_args,
-        dataset_name=dataset_args.dataset_name,
-        gpu_id=basic_args.gpu_id,
-        backbone=mtl_design_args.backbone,
-        out_features=temp_args.out_features,
-        cv_task_args=cv_tasks_args)
+    # model = ModelTree(
+    #     backbone_name='ResNet50',
+    #     member=[0, 1],
+    #     out_features=[],
+    #     prune_names=[],
+    #     cv_tasks_args=None
+    # )
+
+    # all_x, all_y, meta_model = mtg_active_learning(
+    #     train_loaders=train_loaders,
+    #     val_loaders=val_loaders,
+    #     init_grp_args=init_grp_args,
+    #     mtgnet_args=mtgnet_args,
+    #     dataset_name=dataset_args.dataset_name,
+    #     gpu_id=basic_args.gpu_id,
+    #     backbone=mtl_design_args.backbone,
+    #     out_features=temp_args.out_features,
+    #     cv_task_args=cv_tasks_args)
+    #
+    # torch.save(meta_model.state_dict(), 'meta_model.pth')
+    # save_dict = {}
+    # save_dict['all_x'] = all_x
+    # save_dict['all_y'] = all_y
+    # save_dict['init_grp_args'] = init_grp_args
+    # with open('meta_model_data.pkl', 'wb') as f:
+    #     pickle.dump(save_dict, f)
     #
     # # 波束搜索确定共享组的划分
     # print('finish the init_grouping with beam-search method...')
     # grouping = mtg_beam_search(
     #     task_num=task_num, mtg_model=meta_model,
-    #     device='cuda:' + basic_args.gpu_id, beam_width=beam_search_args.beam_width)
-    #
-    # # pagerank获得任务重要性
-    # task_ranks, main_tasks = mtg_task_rank(
-    #     task_num=task_num, mtg_model=meta_model, device='cuda:' + basic_args.gpu_id,
-    #     task_rank_args=task_rank_args, grouping=grouping)
-    #
-    # # 初始化参数共享模型(掩膜全通,为硬参数共享)
-    # models = get_models(grouping=grouping, backbone_name=mtl_design_args.backbone,
-    #                     prune_names=single_prune_args.need_cut,
-    #                     out_features=temp_args.out_features, cv_task_args=cv_tasks_args)
-    #
-    # # 阶段2: 硬参数共享过渡到稀疏参数共享
+    #     device=torch.device('cuda:' + basic_args.gpu_id if torch.cuda.is_available() else 'cpu'),
+    #     beam_width=beam_search_args.beam_width)
+    grouping = [1, 3, 3, 3, 2]
+
+    exp_multi_task_train(grouping=grouping, train_loaders=train_loaders, cv_tasks_args=cv_tasks_args, val_loaders=val_loaders)
+
+    # try_mtl_train(
+    #     train_loaders=train_loaders, val_loaders=val_loaders,
+    #     backbone=mtl_design_args.backbone,
+    #     grouping=grouping, out_features=[],
+    #     try_epoch_num=init_grp_args.labeling_try_epoch,
+    #     try_batch_num=init_grp_args.labeling_try_batch,
+    #     print_freq=100, cv_tasks_args=cv_tasks_args,
+    #     lr=0.01, aux=False, amp=True, results_path_pre=None,
+    #     with_eval=True)
+
+    # pagerank获得任务重要性
+    task_ranks, main_tasks = mtg_task_rank(
+        task_num=task_num, mtg_model=meta_model, device='cuda:' + basic_args.gpu_id,
+        task_rank_args=task_rank_args, grouping=grouping)
+
+    # 初始化参数共享模型(掩膜全通,为硬参数共享)
+    models = get_models(grouping=grouping, backbone_name=mtl_design_args.backbone,
+                        prune_names=single_prune_args.need_cut,
+                        out_features=temp_args.out_features, cv_task_args=cv_tasks_args)
+
+
+
+    # 阶段2: 硬参数共享过渡到稀疏参数共享
     #
     # # 布置进程通信和互斥锁
     # dict_lock = ReadWriteLock()
@@ -233,8 +321,8 @@ if __name__ == '__main__':
     #     'task_ranks': task_ranks, 'single_prune_args': single_prune_args}
     # pruner = multiprocessing.Process(target=pruner, args=pruner_args)
     # pruner.start()
-    #
-    # # 多任务平行训练
+    # #
+    # # # 多任务平行训练
     # multi_task_train(dict_lock=dict_lock, shared_dict=shared_dict,
     #                  multi_train_args=multi_train_args, cv_tasks_args=cv_tasks_args,
     #                  models=models, multi_train_dataset=multi_train_dataset,

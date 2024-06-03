@@ -20,7 +20,7 @@ init_grp_args: # arguments for initial grouping
   mtgnet_upd_freq: 5 #
   high_gain_prefer: 1.0 #
   meta_train_iter: 20 #
-  labeling_try_epoch: 10 #
+  labeling_try_epoch: 1 #
   train_set_develop: 2 #
   ensemble_num: 3 #
 

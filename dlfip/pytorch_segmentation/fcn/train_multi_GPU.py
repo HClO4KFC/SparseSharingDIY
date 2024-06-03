@@ -5,7 +5,7 @@ import datetime
 import torch
 
 from src import fcn_resnet50
-from train_utils import fcn_train_one_epoch, evaluate, create_lr_scheduler, init_distributed_mode, save_on_master, mkdir
+from train_utils import fcn_train_one_epoch, fcn_evaluate, create_lr_scheduler, init_distributed_mode, save_on_master, mkdir
 from my_dataset import VOCSegmentation
 import transforms as T
 
@@ -157,7 +157,7 @@ def main(args):
             scaler.load_state_dict(checkpoint["scaler"])
 
     if args.test_only:
-        confmat = evaluate(model, val_data_loader, device=device, num_classes=num_classes)
+        confmat = fcn_evaluate(model, val_data_loader, device=device, num_classes=num_classes)
         val_info = str(confmat)
         print(val_info)
         return
@@ -170,7 +170,7 @@ def main(args):
         mean_loss, lr = fcn_train_one_epoch(model, optimizer, train_data_loader, device, epoch,
                                             lr_scheduler=lr_scheduler, print_freq=args.print_freq, scaler=scaler)
 
-        confmat = evaluate(model, val_data_loader, device=device, num_classes=num_classes)
+        confmat = fcn_evaluate(model, val_data_loader, device=device, num_classes=num_classes)
         val_info = str(confmat)
         print(val_info)
 

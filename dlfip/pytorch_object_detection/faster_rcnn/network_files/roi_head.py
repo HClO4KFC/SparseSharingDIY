@@ -377,7 +377,7 @@ class RoIHeads(torch.nn.Module):
 
         # 将采集样本通过Multi-scale RoIAlign pooling层
         # box_features_shape: [num_proposals, channel, height, width]
-        box_features = self.box_roi_pool(features, proposals, image_shapes)
+        box_features = self.box_roi_pool(features[0], proposals, image_shapes)
 
         # 通过roi_pooling后的两层全连接层
         # box_features_shape: [num_proposals, representation_size]

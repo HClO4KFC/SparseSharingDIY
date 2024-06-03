@@ -2,7 +2,7 @@ import os
 import torch
 
 from src import fcn_resnet50
-from train_utils import evaluate
+from train_utils import fcn_evaluate
 from my_dataset import VOCSegmentation
 import transforms as T
 
@@ -43,7 +43,7 @@ def main(args):
     model.load_state_dict(torch.load(args.weights, map_location=device)['model'])
     model.to(device)
 
-    confmat = evaluate(model, val_loader, device=device, num_classes=num_classes)
+    confmat = fcn_evaluate(model, val_loader, device=device, num_classes=num_classes)
     print(confmat)
 
 

@@ -1,7 +1,7 @@
 {
-    "bus": 6,
-    "car": 7,
-    "cat": 8,
-    "chair": 9,
-    "cow": 10
+    "bus": 1,
+    "car": 2,
+    "cat": 3,
+    "chair": 4,
+    "cow": 5
 }

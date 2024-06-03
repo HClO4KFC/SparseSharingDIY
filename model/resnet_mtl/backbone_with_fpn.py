@@ -1,3 +1,4 @@
+import copy
 from collections import OrderedDict
 
 import torch.nn as nn
@@ -113,7 +114,7 @@ class FeaturePyramidNetwork(nn.Module):
         out = x
         for module in self.inner_blocks:
             if i == idx:
-                out = module(x)
+                out = module(x)  # Q: model(out)?为什么要将x依次经过前三个卷积层再丢弃?
             i += 1
         return out
 
@@ -123,7 +124,7 @@ class FeaturePyramidNetwork(nn.Module):
         but torchscript doesn't support this yet
         """
         num_blocks = len(self.layer_blocks)
-        if idx < 0:
+        if idx < 0:  # Q: 为什么不是4个tensor对应送入四个卷积层?
             idx += num_blocks
         i = 0
         out = x
@@ -133,7 +134,7 @@ class FeaturePyramidNetwork(nn.Module):
             i += 1
         return out
 
-    def forward(self, x: Dict[str, Tensor]) -> Dict[str, Tensor]:
+    def forward(self, x: Dict[str, Tensor]) -> tuple[Dict[str, Tensor], Dict[str, Tensor]]:
         """
         Computes the FPN for a set of feature maps.
         Arguments:
@@ -145,6 +146,8 @@ class FeaturePyramidNetwork(nn.Module):
         # unpack OrderedDict into two lists for easier handling
         names = list(x.keys())
         x = list(x.values())
+        # 用于classifier的不经卷积和整形的输出
+        classification_out = OrderedDict({'aux': x[2], 'out': x[3]})
 
         # 将resnet layer4的channel调整到指定的out_channels
         # last_inner = self.inner_blocks[-1](x[-1])
@@ -169,7 +172,7 @@ class FeaturePyramidNetwork(nn.Module):
         # make it back an OrderedDict
         out = OrderedDict([(k, v) for k, v in zip(names, results)])
 
-        return out
+        return out, classification_out
 
 
 class LastLevelMaxPool(torch.nn.Module):
@@ -231,5 +234,5 @@ class BackboneWithFPN(nn.Module):
 
     def forward(self, x):
         x = self.body(x)
-        x = self.fpn(x)
-        return x
+        out_for_FRCNN, out_for_FCN = self.fpn(x)
+        return out_for_FRCNN, out_for_FCN

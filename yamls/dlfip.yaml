@@ -6,10 +6,7 @@ basic_args:
   available_end_device_num: 5
 
 dataset_args:
-  dataset_name: 'cityscapes'
-  batch_size: 8
-  path_pre: '../cvDatasets'
-  shuffle: True
+  dataset_name: 'pascalVOC2012'
 
 mtgnet_args:
   num_layers: 2 # 每加入几轮newTrainSet才进行一轮重训练
@@ -17,12 +14,14 @@ mtgnet_args:
   dropout_rate: 0.5
 
 init_grp_args: # arguments for initial grouping
-  mtgnet_upd_freq: 5 #
-  high_gain_prefer: 1.0 #
-  meta_train_iter: 20 #
-  labeling_try_epoch: 10 #
-  train_set_develop: 2 #
-  ensemble_num: 3 #
+  mtgnet_upd_freq: 1  # 每几轮训练集迭代进行一次训练5
+  high_gain_prefer: 1.0  # 对高增益分组的偏向指数
+  meta_train_iter: 1  # 总共进行几轮元训练10
+  labeling_try_epoch: 1  # 标记训练集时试训练几轮10
+  labeling_try_batch: 1  # 每轮试训练用几批数据,null是全用null
+  train_set_develop: 2  # 每轮新增几个训练集对象
+  ensemble_num: 2  # 元学习模型输出从几个基模型中选出
+  print_freq: 1  # 每几轮打印一次训练信息10
 
 beam_search_args:
   beam_width: 20 #
@@ -36,7 +35,7 @@ mtl_design_args:
   backbone: 'ResNet50'
 
 single_prune_args:
-  need_cut: 'lstm,conv'
+  need_cut: []  # 需要剪枝的参数列表,目前无效
   dec_percent: 5
   max_iter: 10 #
   batch_per_iter: 2 #
@@ -65,126 +64,84 @@ temp_args:
 
 cv_tasks_args:
   - {
-      name: 'ObjDet1',
-      input: 'left',
-      output: 'disparity',
-      scale_factor: '',  #
-      upsample_mode: 'linear',
-      allocate: 4
-      # 'nearest'最临近插值, linear线性插值,
-      # bilinear双线性插值, bicubic双三次插值
-      # trilinear双三次插值,area区域插值
-  }
-  - {
-      name: 'genRightCam',
-      input: 'left',
-      output: 'right',
+      name: 'seg',
       allocate: 4
   }
   - {
-      name: 'detPeople',
-      input: 'left',
-      output: 'people',
+      name: 'objdet1',
+      allocate: 4
+  }
+  - {
+      name: 'objdet2',
       allocate: 1,
-      num_classes: ,
-      num_anchors: 9,
-      label_id_map:[person group,sitting person,person (other),ignore,pedestrian,rider]
   }
   - {
-      name: 'detCars',
-      input: 'left',
-      output: 'car',
+      name: 'objdet3',
       allocate: 1,
-      num_classes: ,
-      num_anchors: 9,
-      label_id_map:[tunnel,caravan,truck,dynamic,motorcycle,car,bicycle,trailer,bus,train]
   }
   - {
-      name: 'detObjs',
-      input: 'left',
-      output: 'obj',
-      allocate: 1,
-      num_classes: ,
-      num_anchors: 9,
-      label_id_map: [tunnel,bus,caravan,truck,dynamic,car,sitting person,motorcycle,person group,person (other),bicycle,ignore,trailer,pedestrian,rider,train]
-  }
-  - {
-      name: 'segInstance',
-      input: 'left',
-      output: 'instance',
-      allocate: 2
-  }
-  - {
-      name: 'segLabel',
-      input: 'left',
-      output: 'label',
-      allocate: 2
-  }
-  - {
-      name: 'segPanoptic',
-      input: 'left',
-      output: 'panoptic',
-      allocate: 3
+      name: 'objdet4',
+      allocate: 1
   }
 
-cv_subsets_args:
-  - {
-      name: 'left',
-      category: 'leftImg8bit',
-      set_name: 'leftImg8bit',
-      ext: 'png'
-  }
-  - {
-      name: 'right',
-      category: 'rightImg8bit',
-      set_name: 'rightImg8bit',
-      ext: 'png'
-  }
+#cv_subsets_args:
 #  - {
-#      name: 'rain',
-#      category: 'leftImg8bit_rain',
-#      set_name: '',
-#      ext: ''
+#      name: 'left',
+#      category: 'leftImg8bit',
+#      set_name: 'leftImg8bit',
+#      ext: 'png'
 #  }
-  - {
-      name: 'disparity',
-      category: 'disparity',
-      set_name: 'disparity',
-      ext: 'png'
-  }
-  - {
-      name: 'instance',
-      category: 'gtFine',
-      set_name: 'gtFine_instanceIds',
-      ext: 'png'
-  }
-  - {
-      name: 'label',
-      category: 'gtFine',
-      set_name: 'gtFine_labelIds',
-      ext: 'png'
-  }
-  - {
-      name: 'panoptic',
-      category: 'gtFine_panoptic',
-      set_name: 'gtFine_panoptic',
-      ext: 'png'
-  }
-  - {
-      name: 'people',
-      category: 'gtBbox_cityPersons',
-      set_name: 'gtBboxCityPersons',
-      ext: 'json'
-  }
-  - {
-      name: 'car',
-      category: 'gtBbox3d',
-      set_name: 'gtBbox3d',
-      ext: 'json'
-  }
-  - {
-      name: 'obj',
-      category: 'gtBbox_obj',
-      set_name: 'gtBbox_obj',
-      ext: 'json'
-  }
+#  - {
+#      name: 'right',
+#      category: 'rightImg8bit',
+#      set_name: 'rightImg8bit',
+#      ext: 'png'
+#  }
+##  - {
+##      name: 'rain',
+##      category: 'leftImg8bit_rain',
+##      set_name: '',
+##      ext: ''
+##  }
+#  - {
+#      name: 'disparity',
+#      category: 'disparity',
+#      set_name: 'disparity',
+#      ext: 'png'
+#  }
+#  - {
+#      name: 'instance',
+#      category: 'gtFine',
+#      set_name: 'gtFine_instanceIds',
+#      ext: 'png'
+#  }
+#  - {
+#      name: 'label',
+#      category: 'gtFine',
+#      set_name: 'gtFine_labelIds',
+#      ext: 'png'
+#  }
+#  - {
+#      name: 'panoptic',
+#      category: 'gtFine_panoptic',
+#      set_name: 'gtFine_panoptic',
+#      ext: 'png'
+#  }
+#  - {
+#      name: 'people',
+#      category: 'gtBbox_cityPersons',
+#      set_name: 'gtBboxCityPersons',
+#      ext: 'json'
+#  }
+#  - {
+#      name: 'car',
+#      category: 'gtBbox3d',
+#      set_name: 'gtBbox3d',
+#      ext: 'json'
+#  }
+#  - {
+#      name: 'obj',
+#      category: 'gtBbox_obj',
+#      set_name: 'gtBbox_obj',
+#      ext: 'json'
+#  }

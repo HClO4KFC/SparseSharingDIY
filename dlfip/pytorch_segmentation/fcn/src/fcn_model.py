@@ -85,21 +85,23 @@ class FCN(nn.Module):
     def forward(self, x: Tensor) -> Dict[str, Tensor]:
         input_shape = x.shape[-2:]
         # contract: features is a dict of tensors
-        features = self.backbone(x)
+        features_for_FRCNN, features_for_FCN = self.backbone(x)
 
         result = OrderedDict()
-        x = features["3"]
+        x = features_for_FCN["out"]
+        if not x.dtype is torch.float32:
+            x = x.to(torch.float32)
         x = self.classifier(x)
         # 原论文中虽然使用的是ConvTranspose2d，但权重是冻结的，所以就是一个bilinear插值
         x = F.interpolate(x, size=input_shape, mode='bilinear', align_corners=False)
         result["out"] = x
 
         if self.aux_classifier is not None:
-            x = features["3"]
+            x = features_for_FCN["aux"]
             x = self.aux_classifier(x)
             # 原论文中虽然使用的是ConvTranspose2d，但权重是冻结的，所以就是一个bilinear插值
             x = F.interpolate(x, size=input_shape, mode='bilinear', align_corners=False)
-            result["3"] = x
+            result["aux"] = x
 
         return result
 
@@ -108,7 +110,7 @@ class FCNHead(nn.Sequential):
     def __init__(self, in_channels, channels):
         inter_channels = in_channels // 4
         layers = [
-            nn.Conv2d(in_channels, inter_channels, 3, padding=1, bias=False),
+            nn.Conv2d(in_channels, inter_channels, 3, padding=1, bias=False, dtype=torch.float32),
             nn.BatchNorm2d(inter_channels),
             nn.ReLU(),
             nn.Dropout(0.1),

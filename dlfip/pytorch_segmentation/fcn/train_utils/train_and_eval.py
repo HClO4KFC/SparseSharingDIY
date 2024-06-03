@@ -1,6 +1,8 @@
 import torch
 from torch import nn
 import train_utils.distributed_utils as utils
+from dlfip.pytorch_segmentation.fcn.src.fcn_model import FCN
+from dlfip.pytorch_segmentation.fcn.train_utils.distributed_utils import ConfusionMatrix
 
 
 def criterion(inputs, target):
@@ -15,9 +17,9 @@ def criterion(inputs, target):
     return losses['out'] + 0.5 * losses['aux']
 
 
-def evaluate(model, data_loader, device, num_classes):
+def fcn_evaluate(model, data_loader, device, num_classes):
     model.eval()
-    confmat = utils.ConfusionMatrix(num_classes)
+    confmat = ConfusionMatrix(num_classes)
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = 'Test:'
     with torch.no_grad():
@@ -33,16 +35,21 @@ def evaluate(model, data_loader, device, num_classes):
     return confmat
 
 
-def fcn_train_one_epoch(model, optimizer, data_loader, device, epoch, lr_scheduler, print_freq=10, scaler=None):
+def fcn_train_one_epoch(model, optimizer, data_loader, device, epoch, lr_scheduler, print_freq=10, scaler=None, try_batch_num=None):
+    assert isinstance(model, FCN)
     model.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
 
-    for image, target in metric_logger.log_every(data_loader, print_freq, header):
+    for i, [image, target] in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+        # for idx, (image, target) in enumerate(data_loader):
+        if try_batch_num is not None and i >= try_batch_num:
+            break
         image, target = image.to(device), target.to(device)
         with torch.cuda.amp.autocast(enabled=scaler is not None):
             output = model(image)
+            # output is a dict{'out':..., 'aux':...}with each of 2**n, 60, 60, n=11, 10
             loss = criterion(output, target)
 
         optimizer.zero_grad()

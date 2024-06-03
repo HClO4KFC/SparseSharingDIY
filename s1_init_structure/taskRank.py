@@ -15,13 +15,16 @@ def mtg_task_rank(task_num:int, mtg_model:torch.nn.Module, device:str,
     rand_jump_rate = task_rank_args.rand_jump_rate
     converge_tolerance = task_rank_args.converge_tolerance
     indices = list(itertools.combinations(range(task_num), 2))
-    input = torch.from_numpy([[1 if i in pair else 0 for i in range(task_num)] for pair in indices])
+    input = torch.Tensor([[1 if i in pair else 0 for i in range(task_num)] for pair in indices])
     task_ids_repeated = torch.from_numpy(np.array(range(len(input[0])))).repeat(len(input), 1).to(device)
-    output = mtg_model(input, task_ids_repeated)
+    output, _, _, _ = mtg_model(input, task_ids_repeated)
 
     # 获得邻接矩阵
     map = np.zeros((task_num, task_num))
-    for group, gain in input, output:
+    assert len(input) == len(output)
+    for idx in range(len(input)):
+        group = input[idx]
+        gain = output[idx]
         members = [i for i in range(task_num) if group[i] == 1]
         assert len(members) == 2
         map[members[0]][members[1]] = gain[members[1]]
@@ -46,11 +49,11 @@ def mtg_task_rank(task_num:int, mtg_model:torch.nn.Module, device:str,
             break
         task_ranks = tr_new
 
-    main_tasks = np.zeros((np.max(grouping)))
-    max_trs = np.zeros((np.max(grouping)))
+    main_tasks = np.zeros((np.max(grouping) + 1))
+    max_tr = np.zeros((np.max(grouping) + 1))  # 第i组的最大tr
     for i in range(task_num):
-        if task_ranks[i] > max_trs[grouping[i]]:
-            max_trs[grouping] = task_ranks[i]
+        if task_ranks[i] > max_tr[grouping[i]]:
+            max_tr[grouping[i]] = task_ranks[i]
             main_tasks[grouping] = i
 
     return task_ranks, main_tasks

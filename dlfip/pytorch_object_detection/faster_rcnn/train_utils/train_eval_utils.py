@@ -9,7 +9,7 @@ from .coco_eval import CocoEvaluator
 import train_utils.distributed_utils as utils
 
 
-def train_one_epoch(model, optimizer, data_loader, device, epoch,
+def train_one_epoch(model, optimizer, data_loader, device, epoch, try_batch_num=None,
                     print_freq=50, warmup=False, scaler=None):
     model.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -25,6 +25,8 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch,
 
     mloss = torch.zeros(1).to(device)  # mean losses
     for i, [images, targets] in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+        if try_batch_num is not None and i >= try_batch_num:
+            break
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 

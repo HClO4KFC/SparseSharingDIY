@@ -1,5 +1,10 @@
+import copy
+import random
+
 import numpy as np
 import torch
+
+from poor_old_things.data_parsing.mtgDataParse import ParsedDataset
 #
 # from poor_old_things.data_parsing.mtgDataParse import data_parse, data_shuffle, ParsedDataset
 from poor_old_things.details.trainDetails import train_base, update_ensemble
@@ -24,7 +29,6 @@ def mtg_training(model:torch.nn.Module, ensemble_num, dataset_name,
     overall_mask_traj = []
 
     device = torch.device('cuda:' + gpu_id if torch.cuda.is_available() else 'cpu')
-    print(device)
 
     # 设置训练参数
     train_batch_size = 128  # (训练过程中)每批处理这么多个分组方案x
@@ -44,7 +48,17 @@ def mtg_training(model:torch.nn.Module, ensemble_num, dataset_name,
 
 
     # 随机打乱训练集
-    x_train, y_train, mask_train = data_shuffle(*parsed_data.get_train_set())
+    assert len(trn_x) == len(trn_y)
+    idx = list(range(len(trn_x)))
+    random.shuffle(idx)
+    x_train = [trn_x[i] for i in idx]
+    y_train = [trn_y[i] for i in idx]
+    mask_train = copy.deepcopy(x_train)
+    parsed_data = ParsedDataset(
+        dataset=dataset_name, device=device, x=x_train,
+        y=y_train, trn_samp_idx=None,
+        eval_samp_idx=None, x_test_source=x_train,
+        y_test_source=y_train)
 
     # 初始化模型和优化器
     optimizer = torch.optim.Adam(
@@ -128,18 +142,14 @@ def mtg_training(model:torch.nn.Module, ensemble_num, dataset_name,
     print('train loss', train_perf)
     print('eval loss', eval_perf)
     print('test loss', test_perf)
-
-    # 将当前iter的预测结果打包汇总,并备份训练数据
-    if dataset_name == '27tasks':
-        iter_pred = torch.cat([overall_test_output, overall_eval_output, y_train.cpu().detach()], 0).numpy()
-        iter_x = torch.cat([x_test.cpu().detach(), x_eval.cpu.detach(), x_train.cpu().detach()], 0).numpy()
-    elif dataset_name == 'cityscapes':
-        iter_pred = torch.cat([overall_test_output, overall_eval_output, y_train.cpu().detach()], 0).numpy()
-        iter_x = torch.cat([x_test.cpu().detach(), x_eval.cpu.detach(), x_train.cpu().detach()], 0).numpy()
-    else:
-        iter_pred = torch.cat([overall_test_output, y_train.cpu().detach()], 0).numpy()
-        iter_x = torch.cat([x_test.cpu().detach(), x_train.cpu().detach()], 0).numpy()
-    overall_pred_traj.append(iter_pred)
-    overall_mask_traj.append(iter_x)
+    #
+    # # 将当前iter的预测结果打包汇总,并备份训练数据
+    # if dataset_name == '27tasks':
+    #     iter_pred = torch.cat([overall_test_output, overall_eval_output, y_train], 0).numpy()
+    #     iter_x = torch.cat([x_test.cpu().detach(), x_eval.cpu.detach(), x_train.cpu().detach()], 0).numpy()
+    # elif dataset_name == 'cityscapes':
+    #     iter_pred = torch.cat([overall_test_output, overall_eval_output, y_train], 0).numpy()
+    #     iter_x = torch.cat([x_test.cpu().detach(), x_eval.cpu.detach(), x_train.cpu().detach()], 0).numpy()
+    # else:
 
     return model

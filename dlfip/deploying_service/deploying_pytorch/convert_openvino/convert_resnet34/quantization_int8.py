@@ -69,12 +69,12 @@ def main():
                                         model_name=model_name)
 
     # Step 9: Compare accuracy of the original and quantized models.
-    metric_results = pipeline.evaluate(model)
+    metric_results = pipeline.fcn_evaluate(model)
     if metric_results:
         for name, value in metric_results.items():
             print(f"Accuracy of the original model: {name}: {value}")
 
-    metric_results = pipeline.evaluate(compressed_model)
+    metric_results = pipeline.fcn_evaluate(compressed_model)
     if metric_results:
         for name, value in metric_results.items():
             print(f"Accuracy of the optimized model: {name}: {value}")

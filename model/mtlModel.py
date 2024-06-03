@@ -59,7 +59,7 @@ def build_backbone(backbone_name):
 
 class ModelTree(torch.nn.Module):
     def __init__(self, backbone_name: str, member: list, out_features: list, prune_names: list, cv_tasks_args,
-                 no_mask=False):
+                 no_mask=False, device=torch.device('cpu')):
         super(ModelTree, self).__init__()
         # self.no_mask = no_mask
         self.backbone = build_backbone(backbone_name)
@@ -71,34 +71,33 @@ class ModelTree(torch.nn.Module):
         self.pruned_names = prune_names
         self.masks = []
         self.optims = []
-
         for i in member:
             if i == 0:
                 # fcn
                 out_inplanes = 2048
                 aux_inplanes = 1024
-                aux = False
+                aux = True
                 aux_classifier = None
                 if aux:
                     aux_classifier = FCNHead(
                         in_channels=aux_inplanes,
-                        channels=21)
+                        channels=21).to(device=device)
                 classifier = FCNHead(
                     in_channels=out_inplanes,
-                    channels=21)
-                model = FCN(self.backbone, classifier, aux_classifier)
+                    channels=21).to(device=device)
+                model = FCN(self.backbone, classifier, aux_classifier).to(device=device)
             else:
                 #faster-rcnn
-                model = FasterRCNN(backbone=self.backbone)
+                model = FasterRCNN(backbone=self.backbone, num_classes=91).to(device=device)
                 # get number of input features for the classifier
                 in_features = model.roi_heads.box_predictor.cls_score.in_features
                 # replace the pre-trained head with a new one
-                model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes=6)
-                pass
+                model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes=6).to(device)
             mask = {name: torch.nn.Parameter(torch.ones(named_param.size()).to(named_param).bool(), requires_grad=False)
                     for name, named_param in self.backbone.named_parameters()
-                    if named_param.requires_grad}
+                    if named_param.requires_grad}  # prune_names 目前无效
                     # if name in prune_names}
+            # print(model)
             self.masks.append(mask)
             self.tasks.append(model)
 

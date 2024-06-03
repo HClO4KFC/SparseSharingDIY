@@ -73,6 +73,8 @@ class VOCDataSet(Dataset):
         iscrowd = []
         assert "object" in data, "{} lack of object information.".format(xml_path)
         for obj in data["object"]:
+            if obj['name'] not in self.class_dict:
+                continue
             xmin = float(obj["bndbox"]["xmin"])
             xmax = float(obj["bndbox"]["xmax"])
             ymin = float(obj["bndbox"]["ymin"])
@@ -105,7 +107,7 @@ class VOCDataSet(Dataset):
         target["iscrowd"] = iscrowd
 
         if self.transforms is not None:
-            image, target = self.transforms(image, target)
+            image = self.transforms(image)
 
         return image, target
 

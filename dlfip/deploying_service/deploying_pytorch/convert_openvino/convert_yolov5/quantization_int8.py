@@ -84,14 +84,14 @@ def main():
     evaluation_pipeline = create_pipeline(algo_config=dict(), engine=engine)
 
     with yaspin(text="Evaluating original IR model") as sp:
-        original_metric = evaluation_pipeline.evaluate(ir_model)
+        original_metric = evaluation_pipeline.fcn_evaluate(ir_model)
 
     if original_metric:
         for key, value in original_metric.items():
             print(f"The {key} score of the original model is {value:.5f}")
 
     with yaspin(text="Evaluating quantized IR model") as sp:
-        quantized_metric = pipeline.evaluate(compressed_model)
+        quantized_metric = pipeline.fcn_evaluate(compressed_model)
 
     if quantized_metric:
         for key, value in quantized_metric.items():
