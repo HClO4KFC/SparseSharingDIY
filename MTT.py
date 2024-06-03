@@ -31,7 +31,7 @@ from model.mtlModel import ModelForrest, ModelTree
 from s1_init_structure.initModelForrest import get_models
 
 
-def get_obj_det_dl(task_no:int):
+def get_obj_det_dl(task_no:int, batch_size:int):
     data_transform = {
         "train": transforms.Compose([transforms.ToTensor(),
                                      transforms.RandomHorizontalFlip(0.5)]),
@@ -41,7 +41,6 @@ def get_obj_det_dl(task_no:int):
     # VOC数据集根目录
     VOC_root = os.path.join("dlfip", "pascalVOC")  # VOCdevkit
     aspect_ratio_group_factor = 3
-    batch_size = 1
     amp = False  # 是否使用混合精度训练，需要GPU支持
 
     # check voc root
@@ -121,7 +120,7 @@ def get_seg_dl(batch_size:int, data_path):
                                                collate_fn=train_dataset.collate_fn)
 
     val_loader = torch.utils.data.DataLoader(val_dataset,
-                                             batch_size=1,
+                                             batch_size=batch_size,
                                              num_workers=num_workers,
                                              pin_memory=True,
                                              collate_fn=val_dataset.collate_fn)
@@ -148,7 +147,7 @@ def set_seed(seed):
 
 
 def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
-    try_epoch_num = 100
+    try_epoch_num = 5
     try_batch_num = None
     print_freq = 10
     lr = 0.01
@@ -201,6 +200,7 @@ if __name__ == '__main__':
     set_seed(0)
     # cal basic info
     task_num = 5
+    batch_size = 8
 
     # 初始化任务描述(内置单任务数据集和加载器)
     # task_info_list = [CvTask(no=i, dataset_args=dataset_args,
@@ -217,8 +217,7 @@ if __name__ == '__main__':
     val_loaders = []
 
     # TODO:任务种类:语义分割
-    seg_batch_size = 1
-    seg_trn_set, seg_val_set, seg_trn_loader, seg_val_loader = get_seg_dl(batch_size=seg_batch_size, data_path=data_path)
+    seg_trn_set, seg_val_set, seg_trn_loader, seg_val_loader = get_seg_dl(batch_size=batch_size, data_path=data_path)
     train_loaders.append(seg_trn_loader)
     val_loaders.append(seg_val_loader)
 
@@ -226,7 +225,7 @@ if __name__ == '__main__':
     # 图像预处理
     # 注：用RandomHorizontalFlip进行随机水平翻转后，ground truth 坐标也要翻转
     for task_no in range(1, 5):
-        obj_det_trn_set, obj_det_val_set, obj_det_trn_loater, obj_det_val_loater = get_obj_det_dl(task_no=task_no)
+        obj_det_trn_set, obj_det_val_set, obj_det_trn_loater, obj_det_val_loater = get_obj_det_dl(task_no=task_no, batch_size=batch_size)
         train_loaders.append(obj_det_trn_loater)
         val_loaders.append(obj_det_val_loater)
     # obj_det_trn_set, obj_det_val_set, obj_det_trn_loater, obj_det_val_loater = get_obj_det_dl(task_no=1)
@@ -293,15 +292,15 @@ if __name__ == '__main__':
     #     lr=0.01, aux=False, amp=True, results_path_pre=None,
     #     with_eval=True)
 
-    # pagerank获得任务重要性
-    task_ranks, main_tasks = mtg_task_rank(
-        task_num=task_num, mtg_model=meta_model, device='cuda:' + basic_args.gpu_id,
-        task_rank_args=task_rank_args, grouping=grouping)
-
-    # 初始化参数共享模型(掩膜全通,为硬参数共享)
-    models = get_models(grouping=grouping, backbone_name=mtl_design_args.backbone,
-                        prune_names=single_prune_args.need_cut,
-                        out_features=temp_args.out_features, cv_task_args=cv_tasks_args)
+    # # pagerank获得任务重要性
+    # task_ranks, main_tasks = mtg_task_rank(
+    #     task_num=task_num, mtg_model=meta_model, device='cuda:' + basic_args.gpu_id,
+    #     task_rank_args=task_rank_args, grouping=grouping)
+    #
+    # # 初始化参数共享模型(掩膜全通,为硬参数共享)
+    # models = get_models(grouping=grouping, backbone_name=mtl_design_args.backbone,
+    #                     prune_names=single_prune_args.need_cut,
+    #                     out_features=temp_args.out_features, cv_task_args=cv_tasks_args)
 
 
 
