@@ -62,14 +62,14 @@ class ModelTree(torch.nn.Module):
                  no_mask=False, device=torch.device('cpu')):
         super(ModelTree, self).__init__()
         # self.no_mask = no_mask
-        self.backbone = build_backbone(backbone_name)
+        self.backbone = build_backbone(backbone_name).to(device=device)
         # print(self.backbone)
         self.tasks = []
         # self.head_names = []
         # self.out_features = out_features
         self.member = member
         self.pruned_names = prune_names
-        self.masks = []
+        self.masks = []  # in cpu
         self.optims = []
         for i in member:
             if i == 0:
@@ -93,7 +93,9 @@ class ModelTree(torch.nn.Module):
                 in_features = model.roi_heads.box_predictor.cls_score.in_features
                 # replace the pre-trained head with a new one
                 model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes=6).to(device)
-            mask = {name: torch.nn.Parameter(torch.ones(named_param.size()).to(named_param).bool(), requires_grad=False)
+            # mask = {name: torch.nn.Parameter(torch.ones(named_param.size()).to(named_param).bool(), requires_grad=False)
+                mask = {
+                    name: torch.nn.Parameter(torch.ones(named_param.size()).to('cpu').bool(), requires_grad=False)
                     for name, named_param in self.backbone.named_parameters()
                     if named_param.requires_grad}  # prune_names 目前无效
                     # if name in prune_names}

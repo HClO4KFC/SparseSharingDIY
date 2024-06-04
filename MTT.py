@@ -80,7 +80,7 @@ def get_obj_det_dl(task_no:int, batch_size:int):
     else:
         train_data_loader = torch.utils.data.DataLoader(train_dataset,
                                                         batch_size=batch_size,
-                                                        shuffle=False,
+                                                        shuffle=True,
                                                         pin_memory=True,
                                                         num_workers=nw,
                                                         collate_fn=train_dataset.collate_fn)
@@ -149,7 +149,7 @@ def set_seed(seed):
 
 def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
     try_epoch_num = 1#5
-    try_batch_num = None
+    try_batch_num = 900
     print_freq = 1
     lr = 0.01
     aux = True
@@ -158,33 +158,39 @@ def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
     print("正在进行单任务与多任务训练的对比...")
     # 单任务
     single_losses = [None for _ in range(len(grouping))]
-    multi_losses = [None for _ in range(len(grouping))]
-    start_time = time.time()
-    print(f'single task start time: {start_time}')
-    for i in range(1, len(grouping)):
-        this_group = [1 if k == i else 0 for k in range(len(grouping))]
-        print(f'单任务过程{this_group}:')
-        loss = try_mtl_train(
-            train_loaders=train_loaders, val_loaders=val_loaders,
-            backbone='ResNet50', grouping=this_group, out_features=[],
-            try_epoch_num=try_epoch_num, try_batch_num=try_batch_num,
-            print_freq=print_freq, cv_tasks_args=cv_tasks_args,
-            lr=lr, aux=aux, amp=amp, results_path_pre='./test1', with_eval=with_eval)
-        single_losses = [loss[i] if this_group[i] == 1 else single_losses[i]]
-    end_time = time.time()
-    print(f'single task end time: {end_time}')
-    print(f'single task total time{str(start_time - end_time)}')
-    m_start_time = time.time()
-    # for i in range(1, max(grouping) + 1):
-    #     this_group = [1 if grouping[k] == i else 0 for k in range(len(grouping))]
+    # start_time = time.time()
+    # print(f'single task start time: {start_time}')
+    # for i in range(0, len(grouping)):
+    #     this_group = [1 if k == i else 0 for k in range(len(grouping))]
+    #     print(f'单任务过程{this_group}:')
     #     loss = try_mtl_train(
     #         train_loaders=train_loaders, val_loaders=val_loaders,
     #         backbone='ResNet50', grouping=this_group, out_features=[],
     #         try_epoch_num=try_epoch_num, try_batch_num=try_batch_num,
     #         print_freq=print_freq, cv_tasks_args=cv_tasks_args,
     #         lr=lr, aux=aux, amp=amp, results_path_pre='./test1', with_eval=with_eval)
-    #     multi_losses = [loss[i] if this_group[i] == 1 else multi_losses[i]]
+    #     single_losses = [loss[i] if this_group[i] == 1 else single_losses[i]]
+    # end_time = time.time()
+    # print(f'single task end time: {end_time}')
+    # print(f'single task total time{str(start_time - end_time)}')
+    multi_losses = [None for _ in range(len(grouping))]
+    m_start_time = time.time()
+    for i in range(1, max(grouping) + 1):
+    # for i in range(2, 3):
+        this_group = [1 if grouping[k] == i else 0 for k in range(len(grouping))]
+        print(f'多任务过程{this_group}:')
+        loss = try_mtl_train(
+            train_loaders=train_loaders, val_loaders=val_loaders,
+            backbone='ResNet50', grouping=this_group, out_features=[],
+            try_epoch_num=try_epoch_num, try_batch_num=try_batch_num,
+            print_freq=print_freq, cv_tasks_args=cv_tasks_args,
+            lr=lr, aux=aux, amp=amp, results_path_pre='./test1', with_eval=with_eval)
+        for idx in range(len(loss)):
+            if this_group[idx] == 1:
+                multi_losses[idx] = loss[idx]
     m_end_time = time.time()
+
+    print(f'single task total time{str(m_end_time - m_start_time)}')
     pass
 
 
@@ -210,12 +216,6 @@ if __name__ == '__main__':
     task_num = 5
     batch_size = 1
 
-    # 初始化任务描述(内置单任务数据集和加载器)
-    # task_info_list = [CvTask(no=i, dataset_args=dataset_args,
-    #                          cv_task_arg=cv_tasks_args[i],
-    #                          cv_subsets_args=cv_subsets_args)
-    #                   for i in range(task_num)]
-
     data_path = os.path.join('dlfip', 'pascalVOC')
     # 阶段1: 多任务模型构建
     # 准备多任务数据集
@@ -236,11 +236,6 @@ if __name__ == '__main__':
         obj_det_trn_set, obj_det_val_set, obj_det_trn_loater, obj_det_val_loater = get_obj_det_dl(task_no=task_no, batch_size=batch_size)
         train_loaders.append(obj_det_trn_loater)
         val_loaders.append(obj_det_val_loater)
-    # obj_det_trn_set, obj_det_val_set, obj_det_trn_loater, obj_det_val_loater = get_obj_det_dl(task_no=1)
-    # for task_no in range(1, 5):
-    #     train_loaders.append(obj_det_trn_loater)
-    #     val_loaders.append(obj_det_val_loater)
-
 
     # multi_train_dataset = MultiDataset(
     #     dataset=dataset_args.dataset_name, path_pre=dataset_args.path_pre,
@@ -252,14 +247,8 @@ if __name__ == '__main__':
     #     cv_tasks_args=cv_tasks_args, cv_subsets_args=cv_subsets_args,
     #     train_val_test='val', transform=transforms.Compose([transforms.ToTensor()]),
     #     label_id_maps={cv_tasks_args[i].output:cv_tasks_args[i].label_id_map for i in range(len(cv_tasks_args)) if hasattr(cv_tasks_args[i], 'label_id_map')})
+
     # 元数据集标注+元学习模型mtg-net训练(主动学习策略)
-    # model = ModelTree(
-    #     backbone_name='ResNet50',
-    #     member=[0, 1],
-    #     out_features=[],
-    #     prune_names=[],
-    #     cv_tasks_args=None
-    # )
     # start_time = time.time()
     # all_x, all_y, meta_model = mtg_active_learning(
     #     train_loaders=train_loaders,
@@ -287,8 +276,8 @@ if __name__ == '__main__':
     # with open('meta_model_data.pkl', 'wb') as f:
     #     pickle.dump(save_dict, f)
     #
-    grouping = [1, 3, 3, 3, 2]
-
+    # grouping = [1, 3, 3, 3, 2]
+    grouping = [3, 1, 1, 2, 3]
     exp_multi_task_train(grouping=grouping, train_loaders=train_loaders, cv_tasks_args=cv_tasks_args, val_loaders=val_loaders)
 
     # try_mtl_train(
