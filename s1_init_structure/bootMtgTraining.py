@@ -17,6 +17,7 @@ from utils.lookUpTables import get_init_lr
 def try_mtl_train(train_loaders:list, val_loaders:list, backbone: str, grouping: list, out_features: list,
                   try_epoch_num: int, try_batch_num, print_freq:int, cv_tasks_args, lr=0.01, aux=False, amp=True, results_path_pre=None,
                   with_eval=False) -> list:
+
     # 输入: 一个分组方案grouping,其中在分组中的任务记作1,不在的记作0
     # 输出: 尝试将这些任务分为一组进行硬参数共享训练一定轮次后,得到各任务的loss向量
     member = [i for i in range(len(grouping)) if grouping[i] == 1]
@@ -161,7 +162,7 @@ def try_mtl_train(train_loaders:list, val_loaders:list, backbone: str, grouping:
                         save_files["scaler"] = [scaler.state_dict() for scaler in scalers]
                     torch.save(save_files, f'./save_weights/{"_".join(str(member).split(",")[1:-1])}_grouped_{str(i)}th_model_{epoch}.pth')
                     # 1_2_3_grouped_1th_model_0.pth
-
+    print()
     ans_loss = [train_loss[i][-1] for i in range(len(member))]
     ans = [None for _ in range(len(grouping))]
     for i in range(len(grouping)):
@@ -208,7 +209,6 @@ def mtg_active_learning(train_loaders, init_grp_args, mtgnet_args,
 
     mtgnet_upd_freq=init_grp_args.mtgnet_upd_freq
     high_gain_preference=init_grp_args.high_gain_prefer
-    train_set_size=init_grp_args.train_set_develop * init_grp_args.meta_train_iter
     try_epoch_num=init_grp_args.labeling_try_epoch
     try_batch_num=init_grp_args.labeling_try_batch
     print_freq = init_grp_args.print_freq
@@ -223,9 +223,10 @@ def mtg_active_learning(train_loaders, init_grp_args, mtgnet_args,
 
     train_x = []
     train_y = []
+    all_x = []
+    all_y = []
     ensemble_model = []
     ensemble_model_loss = []
-    in_test_list = [True for _ in range(2 ** (task_num + 1))]
     model = HOINetTransformer(
         num_layers=num_layers,
         model_dim=num_hidden,
@@ -240,47 +241,50 @@ def mtg_active_learning(train_loaders, init_grp_args, mtgnet_args,
         weight_decay=0.0005
     )
 
-    # 开始主动学习, 首批训练集仅包括"全分到一组"这一种情况
-    selected_train_set = [[1 for _ in range(task_num)]]
-    in_test_list[binList2Int([1 for _ in range(task_num)])] = False
+    in_test_list = [True for _ in range(2 ** (task_num + 1))]
     baseline_x = [[1 if i == j else 0 for i in range(task_num)] for j in range(task_num)]  # 此后所有训练集都要对标这些单任务模型
     baseline_y = []
     for x in baseline_x:
         in_test_list[binList2Int(x)] = False
-    print('单任务训练中...')
     for x in baseline_x:
+        print(f'迁移增益比较基准制作(单任务训练)中,当前: {x} ...')
         x = (torch.Tensor(x)).to(device)
         baseline_output = try_mtl_train(
             train_loaders=train_loaders, grouping=x, try_epoch_num=try_epoch_num,
-            try_batch_num=try_batch_num, print_freq=print_freq,
+            try_batch_num=try_batch_num, print_freq=1,  # 通过将print_freq置0避免来自MetricLogger的具体训练过程输出
             backbone=backbone, out_features=out_features,
             cv_tasks_args=cv_task_args, val_loaders=val_loaders)
         assert len([i for i in baseline_output if i is not None]) == 1
         baseline_y.append(sum([i for i in baseline_output if i is not None]))
-        print(f'grouping: {x}, loss: {baseline_output}')
+        print(f'迁移增益比较基准制作(单任务训练)中,当前: {x} , loss: {baseline_output}')
         # try_mtl_train()应接受一个0,1数组,在为1的任务中构建硬参数共享模型,试训练try_epoch_num个周期,记录并返回这段时间组内每个任务loss变化的斜率
         # 此外,为了debug用,应保存试训练期间的loss变化到文件
-    all_x = []
-    all_y = []
-    print('开始主动学习...')
-    for k in range(train_set_size // new_train_per_iter):
-        print(f'迭代{str(k)}:')
+    print('迁移增益比较基准制作(单任务训练)完成, 开始主动学习...')
+    # 首批训练集仅包括"全分到一组"这一种情况
+    selected_train_set = [[1 for _ in range(task_num)]]
+    in_test_list[binList2Int([1 for _ in range(task_num)])] = False
+    for k in range(init_grp_args.meta_train_iter):
+        print(f'元学习训练迭代第 {str(k)} 次:')
+        print('  多任务试训练,标注一批元数据集:')
+        # 制作上批选出的c_train的ground truth, 清空候选
+        for new_member in selected_train_set:
+            print(f'    开始元学习数据集标注 {new_member} :')
+            new_member_output = try_mtl_train(
+                train_loaders=train_loaders, val_loaders=val_loaders,
+                try_epoch_num=try_epoch_num, try_batch_num=try_batch_num,
+                backbone=backbone, out_features=out_features,
+                cv_tasks_args=cv_task_args, grouping=new_member, print_freq=1)
+            train_x.append(new_member)
+            # train_y.append([new_member_output[i] - baseline_y[i] for i in range(task_num) if baseline_y[i] != 0])
+            train_y.append(new_member_output)
+            all_x.append(new_member)
+            all_y.append(new_member_output)
+            print(f'    第 {str(k)} 次迭代,元学习数据集标注中,当前: {new_member}, loss: {new_member_output}')
+        candidates = []
+        print('  预测新一批数据集候选的迁移增益:')
+        # 此处由于任务数较少, 可以全部参与每一轮预测和重选, 任务过多时遭遇指数爆炸, 无法很快做出预测, 可将后面的新数据集筛选代码放入j循环中进行. 此处这样做会导致全部试训, 元学习模型的意义就丧失了
         for j in range(task_num):
-            print('  多任务试训练,标注一批元数据集:')
-            # 制作上批选出的c_train的ground truth, 清空候选
-            for new_member in selected_train_set:
-                new_member_output = try_mtl_train(
-                    train_loaders=train_loaders, val_loaders=val_loaders, try_epoch_num=try_epoch_num, try_batch_num=try_batch_num,
-                    backbone=backbone, out_features=out_features, cv_tasks_args=cv_task_args, grouping=new_member, print_freq=print_freq)
-                train_x.append(new_member)
-                # train_y.append([new_member_output[i] - baseline_y[i] for i in range(task_num) if baseline_y[i] != 0])
-                train_y.append(new_member_output)
-                print(f'grouping: {new_member}, loss: {new_member_output}')
-                all_x.append(new_member)
-                all_y.append(new_member_output)
-            print('  计算新一批数据集候选:')
             # 选出c_test中所有包含T_j的方案
-            candidates = []
             for i in range(2 ** (task_num - 1) - 1):
                 no = int2BinList(i, task_num - 1)
                 no.insert(j, 1)
@@ -288,39 +292,41 @@ def mtg_active_learning(train_loaders, init_grp_args, mtgnet_args,
                 num = binList2Int(no)
                 if in_test_list[num]:
                     candidates.append(no)
-            candidates_tensor = torch.Tensor(candidates).to(device)
-            task_id_repeated = torch.from_numpy(np.array(range(task_num)))
-            task_id_repeated = task_id_repeated.repeat(len(candidates_tensor), 1).to(device)
-            task_id_batch = task_id_repeated[:len(candidates_tensor)].to(device)
-            output, attentions, task_embedding, encoder_output = model(candidates_tensor, task_id_batch)
-            output = output.detach().cpu().numpy().tolist()
-            output = [[output[l][i] if candidates[l][i] != 0 else 0
-                       for i in range(len(output[l]))]
-                      for l in range(len(output))]
-            assert len(candidates) == len(output)
-            # for idx in range(len(candidates)):
-            #     cand = candidates[idx]
-            #     out = output[idx]
-            #     print(f'grouping: {cand}, loss: {out}(predicted) ')
 
+        candidates_tensor = torch.Tensor(candidates).to(device)
+        task_id_repeated = torch.from_numpy(np.array(range(task_num)))
+        task_id_repeated = task_id_repeated.repeat(len(candidates_tensor), 1).to(device)
+        task_id_batch = task_id_repeated[:len(candidates_tensor)].to(device)
+        output, _, _, _ = model(candidates_tensor, task_id_batch)
+        output = output.detach().cpu().numpy().tolist()
+        output = [[output[l][i] if candidates[l][i] != 0 else 0
+                   for i in range(len(output[l]))]
+                  for l in range(len(output))]
+        assert len(candidates) == len(output)
+        for idx in range(len(candidates)):
+            cand = candidates[idx]
+            out = output[idx]
+            print(f'    下轮候选: {cand} ( {binList2Int(cand)} ), 预测loss: {out}')
 
-            # 加权选出下轮新加train
-            probs = []
-            for o in output:
-                cnt = 0
-                for item in o:
-                    if item != 0:
-                        cnt += 1
-                probs.append(sum(o) / cnt)
-            probs = [np.exp(high_gain_preference * prob) for prob in probs]
-            probs = probs / sum(probs)
-            selected_train_set = random.choices(candidates, probs.tolist(), k=new_train_per_iter)
-            for x in selected_train_set:
-                in_test_list[binList2Int(x)] = False
-            if (k * task_num + j) % mtgnet_upd_freq == mtgnet_upd_freq - 1:
-                print('  训练元学习模型:')
-                # model, min_loss = update_model(model, train_x, train_y, train_index)
-                model = mtg_training(
-                    model=model, ensemble_num=ensemble_num, dataset_name=dataset_name,
-                    gpu_id=gpu_id, step=1, end_num=1, trn_x=train_x, trn_y=train_y)
+        # 加权选出下轮新加train
+        probability = []
+        for o in output:
+            cnt = 0
+            for item in o:
+                if item != 0:
+                    cnt += 1
+            probability.append(sum(o) / cnt)
+        probability = [np.exp(high_gain_preference * prob) for prob in probability]
+        # probs = [prob / sum(probs) for prob in probs]
+        probability = probability / sum(probability)
+        selected_train_set = random.choices(candidates, probability, k=new_train_per_iter)
+        for x in selected_train_set:
+            in_test_list[binList2Int(x)] = False
+            print(f'    下轮选择: {x}')
+        if k % mtgnet_upd_freq == mtgnet_upd_freq - 1:
+            print('  训练元学习模型:')
+            # model, min_loss = update_model(model, train_x, train_y, train_index)
+            model = mtg_training(
+                model=model, ensemble_num=ensemble_num, dataset_name=dataset_name,
+                gpu_id=gpu_id, step=1, end_num=1, trn_x=train_x, trn_y=train_y)
     return all_x, all_y, model

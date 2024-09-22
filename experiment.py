@@ -13,7 +13,6 @@ import torch
 from datasets.voc12.my_dataset import VOCDataSet
 from dlfip.pytorch_segmentation.fcn.my_dataset import VOCSegmentation
 from dlfip.pytorch_segmentation.fcn.train import get_transform, SegmentationPresetTrain, SegmentationPresetEval
-from dlfip.pytorch_segmentation.fcn.train_utils import create_lr_scheduler
 from s2_continuous_sharing.MultiTaskTrain import multi_task_train
 from s3_drift_mgmt.simTeacherModels import teachers
 from train_utils.group_by_aspect_ratio import create_aspect_ratio_groups, GroupedBatchSampler
@@ -75,7 +74,7 @@ def get_obj_det_dl(task_no:int, batch_size:int):
         # 如果按照图片高宽比采样图片，dataloader中需要使用batch_sampler
         train_data_loader = torch.utils.data.DataLoader(train_dataset,
                                                         batch_sampler=train_batch_sampler,
-                                                        pin_memory=True,
+                                                        pin_memory=False,
                                                         num_workers=nw,
                                                         collate_fn=train_dataset.collate_fn)
     else:
@@ -147,88 +146,58 @@ def set_seed(seed):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-
-def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
-    try_epoch_num = 5
-    try_batch_num = None
-    print_freq = 10
+def exp_single_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
+    try_epoch_num = 1  # 5
+    try_batch_num = 900
+    print_freq = 1
     lr = 0.01
     aux = True
     amp = True
     with_eval = True
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # 构建models
-    groups = []
-    models = [None for _ in range(len(grouping))]
-    for i in range(max(grouping)):
-        groups.append([])
-        for j in range(len(grouping)):
-            if grouping[j] == i:
-                groups[i].append(j)
-    for group in groups:
-        model = ModelTree(
-            backbone_name='ResNet50',
-            member=group,
-            out_features=[],
-            prune_names=[],
-            cv_tasks_args=cv_tasks_args,
-            no_mask=False,
-            device=device
-        )
-        for i in group:
-            models[i] = model.tasks[group.index(i)]
-    # 构建optimizers, schedulers, scalers
-    optimizers = []
-    schedulers = []
-    scalers = []
-    for i in range(len(grouping)):
-        params = [p for p in models[i].parameters() if p.requires_grad]
-        if i == 0:
-            params_to_optimize = [
-                {"params": [p for p in models[i].backbone.parameters() if p.requires_grad]},
-                {"params": [p for p in models[i].classifier.parameters() if p.requires_grad]}
-            ]
-            if aux:
-                params = [p for p in models[i].aux_classifier.parameters() if p.requires_grad]
-                params_to_optimize.append({"params": params, "lr": lr * 10})
-            optimizer = torch.optim.SGD(
-                params_to_optimize,
-                lr=lr, momentum=0.9,
-                weight_decay=1e-4
-            )
-            optimizers.append(optimizer)  # fcn optimizer
-            schedulers.append(create_lr_scheduler(
-                optimizer=optimizer,
-                num_step=len(train_loaders[i]),
-                epochs=30, warmup=True
-            ))
-            scalers.append(torch.cuda.amp.GradScaler() if amp else None)
-        else:
-            optimizer = torch.optim.SGD(
-                params=params,
-                lr=lr,
-                momentum=0.9,
-                weight_decay=1e-4
-            )
-            optimizers.append(optimizer)
-            schedulers.append(torch.optim.lr_scheduler.StepLR(
-                optimizer,
-                step_size=3,
-                gamma=0.33
-            ))
-            scalers.append(torch.cuda.amp.GradScaler() if amp else None)
-    print(f'total time={str(end_time-start_time)}')
-    for iter in range(100000):
-        for epoch in range(5):
-            for task_no in range(len(grouping)):
-                for idx, (image, target) in enumerate(train_loaders[task_no]):
-                    # 单任务训练一批
-        # 检验
-        for task_no in range(len(grouping)):
-            for idx, (image, target) in enumerate(val_loaders[task_no]):
-                # 单任务检验一批(时间,精度)
+    print("正在进行单任务与多任务训练的对比...")
+    # 单任务
+    single_losses = [None for _ in range(len(grouping))]
+    start_time = time.time()
+    for i in range(0, len(grouping)):
+        this_group = [1 if k == i else 0 for k in range(len(grouping))]
+        print(f'单任务过程{this_group}:')
+        loss = try_mtl_train(
+            train_loaders=train_loaders, val_loaders=val_loaders,
+            backbone='ResNet50', grouping=this_group, out_features=[],
+            try_epoch_num=try_epoch_num, try_batch_num=try_batch_num,
+            print_freq=print_freq, cv_tasks_args=cv_tasks_args,
+            lr=lr, aux=aux, amp=amp, results_path_pre='./test1', with_eval=with_eval)
+        single_losses = [loss[i] if this_group[i] == 1 else single_losses[i]]
+    end_time = time.time()
+    print(f'single task total time{str(start_time - end_time)}')
 
 
+def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
+    try_epoch_num = 1#5
+    try_batch_num = 900
+    print_freq = 1
+    lr = 0.01
+    aux = True
+    amp = True
+    with_eval = False
+    multi_losses = [None for _ in range(len(grouping))]
+    m_start_time = time.time()
+    for i in range(1, max(grouping) + 1):
+    # for i in range(2, 3):
+        this_group = [1 if grouping[k] == i else 0 for k in range(len(grouping))]
+        print(f'多任务过程{this_group}:')
+        loss = try_mtl_train(
+            train_loaders=train_loaders, val_loaders=val_loaders,
+            backbone='ResNet50', grouping=this_group, out_features=[],
+            try_epoch_num=try_epoch_num, try_batch_num=try_batch_num,
+            print_freq=print_freq, cv_tasks_args=cv_tasks_args,
+            lr=lr, aux=aux, amp=amp, results_path_pre='./test1', with_eval=with_eval)
+        for idx in range(len(loss)):
+            if this_group[idx] == 1:
+                multi_losses[idx] = loss[idx]
+    m_end_time = time.time()
+
+    print(f'multi task total time{str(m_end_time - m_start_time)}')
 
 
 if __name__ == '__main__':
@@ -251,13 +220,7 @@ if __name__ == '__main__':
     set_seed(0)
     # cal basic info
     task_num = 5
-    batch_size = 6
-
-    # 初始化任务描述(内置单任务数据集和加载器)
-    # task_info_list = [CvTask(no=i, dataset_args=dataset_args,
-    #                          cv_task_arg=cv_tasks_args[i],
-    #                          cv_subsets_args=cv_subsets_args)
-    #                   for i in range(task_num)]
+    batch_size = 1
 
     data_path = os.path.join('dlfip', 'pascalVOC')
     # 阶段1: 多任务模型构建
@@ -279,9 +242,60 @@ if __name__ == '__main__':
         obj_det_trn_set, obj_det_val_set, obj_det_trn_loater, obj_det_val_loater = get_obj_det_dl(task_no=task_no, batch_size=batch_size)
         train_loaders.append(obj_det_trn_loater)
         val_loaders.append(obj_det_val_loater)
-    grouping = [1, 3, 3, 3, 2]
 
-    exp_multi_task_train(grouping=grouping, train_loaders=train_loaders, cv_tasks_args=cv_tasks_args, val_loaders=val_loaders)
+    # multi_train_dataset = MultiDataset(
+    #     dataset=dataset_args.dataset_name, path_pre=dataset_args.path_pre,
+    #     cv_tasks_args=cv_tasks_args, cv_subsets_args=cv_subsets_args,
+    #     train_val_test='train', transform=transforms.Compose([transforms.ToTensor()]),
+    #     label_id_maps={cv_tasks_args[i].output:cv_tasks_args[i].label_id_map for i in range(len(cv_tasks_args)) if hasattr(cv_tasks_args[i], 'label_id_map')})
+    # multi_val_dataset = MultiDataset(
+    #     dataset=dataset_args.dataset_name, path_pre=dataset_args.path_pre,
+    #     cv_tasks_args=cv_tasks_args, cv_subsets_args=cv_subsets_args,
+    #     train_val_test='val', transform=transforms.Compose([transforms.ToTensor()]),
+    #     label_id_maps={cv_tasks_args[i].output:cv_tasks_args[i].label_id_map for i in range(len(cv_tasks_args)) if hasattr(cv_tasks_args[i], 'label_id_map')})
+
+    # 元数据集标注+元学习模型mtg-net训练(主动学习策略)
+    param_enum = list(range(31, 5, -5))
+    repeat_time = 2
+    param_name = 'beam_width'
+    for j in range(repeat_time):
+        for i in param_enum:
+            print(f'枚举参数 {param_name} 中,当前i={str(i)}, j={str(j)}')
+            beam_search_args.beam_width = i  # 记得改这里的参数名
+            start_time = time.time()
+            all_x, all_y, meta_model = mtg_active_learning(
+                train_loaders=train_loaders,
+                val_loaders=val_loaders,
+                init_grp_args=init_grp_args,
+                mtgnet_args=mtgnet_args,
+                dataset_name=dataset_args.dataset_name,
+                gpu_id=basic_args.gpu_id,
+                backbone=mtl_design_args.backbone,
+                out_features=temp_args.out_features,
+                cv_task_args=cv_tasks_args)
+
+            # 波束搜索确定共享组的划分
+            print('finish the init_grouping with beam-search method...')
+            grouping = mtg_beam_search(
+                task_num=task_num, mtg_model=meta_model,
+                device=torch.device('cuda:' + basic_args.gpu_id if torch.cuda.is_available() else 'cpu'),
+                beam_width=beam_search_args.beam_width)
+            end_time = time.time()
+            print(f'total time = {end_time - start_time}')
+
+            specify_post = f'_{param_name}_{str(i)}_{str(j)}'
+
+            torch.save(meta_model.state_dict(), f'meta_model{specify_post}.pth')
+            save_dict = {}
+            save_dict['all_x'] = all_x
+            save_dict['all_y'] = all_y
+            save_dict['init_grp_args'] = init_grp_args
+            save_dict['total_time'] = end_time - start_time
+            save_dict['grouping result'] = grouping
+            with open(f'meta_model_data{specify_post}.pkl', 'wb') as f:
+                pickle.dump(save_dict, f)
+            print(f'*****实验结束,当前i= {i} , j= {j} ,log已写入,总耗时 {end_time - start_time}*****')
+            # exp_multi_task_train(grouping=grouping, train_loaders=train_loaders, cv_tasks_args=cv_tasks_args, val_loaders=val_loaders)
 
     # try_mtl_train(
     #     train_loaders=train_loaders, val_loaders=val_loaders,

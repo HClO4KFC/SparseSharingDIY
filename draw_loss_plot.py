@@ -118,12 +118,45 @@ def draw(task_no):
     plt.show()
 
 
+def draw_one_task_mem_cost():
+
+    # 数据
+    N = 2
+    as_single = [771, 6714]
+    as_multi = [373, 4362]
+    # static_cost = [373, 771]
+    # dynamic_cost = [4362, 6714]
+
+    # 柱形图的宽度
+    width = 0.25
+
+    ind = np.arange(N)
+    # 绘制柱形图
+    fig, ax = plt.subplots()
+
+    rects1 = ax.bar(ind, as_single, width, color=(0.3764705882352941, 0.5215686274509804, 0.5843137254901961))
+    rects2 = ax.bar(ind + width, as_multi, width, color=(0.45176470588235296, 0.6258823529411766, 0.7011764705882353))
+
+    # 添加标签、标题以及图例
+    ax.set_ylabel('GPU mem cost / MB')
+    ax.set_title('GPU mem cost of training a group of 3 tasks\n in single/multi-task ways')
+    plt.ylim(0, 10000)
+    # ax.set_xticks(ind + width / 2)
+    # 调整x轴刻度位置，减小组间的间隙
+    ax.set_xticks(ind)
+    ax.set_xticks(ind + width / 2)
+    ax.set_xticklabels(('static cost', 'static & dynamic cost'))
+    ax.legend((rects1[0], rects2[0]), ('train as single-tasks', 'train as one group'))
+
+    plt.show()
+
+
 def draw_space():
     single_mem = []
     multi_mem = []
     single_time = []
     multi_time = []
-    for i in range(5):
+    for i in range(1, 2):
         with open(os.path.join('precision', f'single{i}.pkl'), "rb") as f:
             dict_ = pickle.load(f)
             single_mem.append(dict_['mem_s'])
@@ -137,10 +170,10 @@ def draw_space():
     multi_mem_sum = [sum(column) for column in zip(*multi_mem)]
     single_time_avg = [sum(column)/5 for column in zip(*single_time)]
     multi_time_avg = [sum(column)/5 for column in zip(*multi_time)]
-    plt.plot(single_time_avg, single_mem_sum, color='orange', label='single-task')
-    plt.plot(multi_time_avg, multi_mem_sum, color='green', label='multi-task')
-    plt.title(f'overall GPU memory cost')
-    plt.xlabel('time/s')
+    plt.plot(single_time_avg, single_mem_sum, color='orange', label='train as single task')
+    plt.plot(multi_time_avg, multi_mem_sum, color='green', label='train in multi-task group')
+    plt.title(f'grouped overall GPU memory cost')
+    plt.xlabel('memory cost/MB')
     plt.ylabel('loss (linear fit)')
     plt.legend()
     plt.show()
@@ -156,7 +189,8 @@ if __name__ == '__main__':
     # dump_n(1, 'multi')
     # dump_n(2, 'multi')
     # dump_n(3, 'multi')
-    draw_space()
+    # draw_space()
+    draw_one_task_mem_cost()
     dump_n(4, 'multi')
 
 

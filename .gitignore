@@ -7,3 +7,7 @@ save/
 test_files/
 dataset/
 *_backup/
+*test*
+*.pth
+*.pkl
+experiment_results/*

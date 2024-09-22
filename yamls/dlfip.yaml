@@ -14,13 +14,13 @@ mtgnet_args:
   dropout_rate: 0.5
 
 init_grp_args: # arguments for initial grouping
+  meta_train_iter: 4 # 总共进行几轮元训练10
+  labeling_try_batch: 30  # 每轮试训练用几批数据,null是全用
+  ensemble_num: 4  # 元学习模型输出从几个基模型中选出
   mtgnet_upd_freq: 1  # 每几轮训练集迭代进行一次训练5
   high_gain_prefer: 1.0  # 对高增益分组的偏向指数
-  meta_train_iter: 1  # 总共进行几轮元训练10
-  labeling_try_epoch: 1  # 标记训练集时试训练几轮10
-  labeling_try_batch: 1  # 每轮试训练用几批数据,null是全用null
+  labeling_try_epoch: 2  # 标记训练集时试训练几轮10
   train_set_develop: 2  # 每轮新增几个训练集对象
-  ensemble_num: 2  # 元学习模型输出从几个基模型中选出
   print_freq: 1  # 每几轮打印一次训练信息10
 
 beam_search_args:

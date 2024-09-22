@@ -94,11 +94,11 @@ class ModelTree(torch.nn.Module):
                 # replace the pre-trained head with a new one
                 model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes=6).to(device)
             # mask = {name: torch.nn.Parameter(torch.ones(named_param.size()).to(named_param).bool(), requires_grad=False)
-                mask = {
-                    name: torch.nn.Parameter(torch.ones(named_param.size()).to('cpu').bool(), requires_grad=False)
-                    for name, named_param in self.backbone.named_parameters()
-                    if named_param.requires_grad}  # prune_names 目前无效
-                    # if name in prune_names}
+            mask = {
+                name: torch.nn.Parameter(torch.ones(named_param.size()).to('cpu').bool(), requires_grad=False)
+                for name, named_param in self.backbone.named_parameters()
+                if named_param.requires_grad}  # prune_names 目前无效
+                # if name in prune_names}
             # print(model)
             self.masks.append(mask)
             self.tasks.append(model)

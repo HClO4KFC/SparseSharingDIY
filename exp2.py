@@ -146,9 +146,8 @@ def set_seed(seed):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-
-def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
-    try_epoch_num = 1#5
+def exp_single_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
+    try_epoch_num = 1  # 5
     try_batch_num = 900
     print_freq = 1
     lr = 0.01
@@ -157,22 +156,30 @@ def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
     with_eval = True
     print("正在进行单任务与多任务训练的对比...")
     # 单任务
-    # single_losses = [None for _ in range(len(grouping))]
-    # start_time = time.time()
-    # print(f'single task start time: {start_time}')
-    # for i in range(0, len(grouping)):
-    #     this_group = [1 if k == i else 0 for k in range(len(grouping))]
-    #     print(f'单任务过程{this_group}:')
-    #     loss = try_mtl_train(
-    #         train_loaders=train_loaders, val_loaders=val_loaders,
-    #         backbone='ResNet50', grouping=this_group, out_features=[],
-    #         try_epoch_num=try_epoch_num, try_batch_num=try_batch_num,
-    #         print_freq=print_freq, cv_tasks_args=cv_tasks_args,
-    #         lr=lr, aux=aux, amp=amp, results_path_pre='./test1', with_eval=with_eval)
-    #     single_losses = [loss[i] if this_group[i] == 1 else single_losses[i]]
-    # end_time = time.time()
-    # print(f'single task end time: {end_time}')
-    # print(f'single task total time{str(start_time - end_time)}')
+    single_losses = [None for _ in range(len(grouping))]
+    start_time = time.time()
+    for i in range(0, len(grouping)):
+        this_group = [1 if k == i else 0 for k in range(len(grouping))]
+        print(f'单任务过程{this_group}:')
+        loss = try_mtl_train(
+            train_loaders=train_loaders, val_loaders=val_loaders,
+            backbone='ResNet50', grouping=this_group, out_features=[],
+            try_epoch_num=try_epoch_num, try_batch_num=try_batch_num,
+            print_freq=print_freq, cv_tasks_args=cv_tasks_args,
+            lr=lr, aux=aux, amp=amp, results_path_pre='./test1', with_eval=with_eval)
+        single_losses = [loss[i] if this_group[i] == 1 else single_losses[i]]
+    end_time = time.time()
+    print(f'single task total time{str(start_time - end_time)}')
+
+
+def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
+    try_epoch_num = 1#5
+    try_batch_num = 900
+    print_freq = 1
+    lr = 0.01
+    aux = True
+    amp = True
+    with_eval = False
     multi_losses = [None for _ in range(len(grouping))]
     m_start_time = time.time()
     for i in range(1, max(grouping) + 1):
@@ -190,8 +197,7 @@ def exp_multi_task_train(grouping, train_loaders, cv_tasks_args, val_loaders):
                 multi_losses[idx] = loss[idx]
     m_end_time = time.time()
 
-    print(f'single task total time{str(m_end_time - m_start_time)}')
-    pass
+    print(f'multi task total time{str(m_end_time - m_start_time)}')
 
 
 if __name__ == '__main__':
@@ -249,36 +255,47 @@ if __name__ == '__main__':
     #     label_id_maps={cv_tasks_args[i].output:cv_tasks_args[i].label_id_map for i in range(len(cv_tasks_args)) if hasattr(cv_tasks_args[i], 'label_id_map')})
 
     # 元数据集标注+元学习模型mtg-net训练(主动学习策略)
-    # start_time = time.time()
-    all_x, all_y, meta_model = mtg_active_learning(
-        train_loaders=train_loaders,
-        val_loaders=val_loaders,
-        init_grp_args=init_grp_args,
-        mtgnet_args=mtgnet_args,
-        dataset_name=dataset_args.dataset_name,
-        gpu_id=basic_args.gpu_id,
-        backbone=mtl_design_args.backbone,
-        out_features=temp_args.out_features,
-        cv_task_args=cv_tasks_args)
+    param_enum = list(range(1, 32, 5))
+    repeat_time = 3
+    param_name = 'beam_width'
+    for i in param_enum:
+        for j in range(repeat_time):
+            print(f'枚举参数 {param_name} 中,当前i={str(i)}, j={str(j)}')
+            beam_search_args.beam_width = i  # 记得改这里的参数名
+            start_time = time.time()
+            all_x, all_y, meta_model = mtg_active_learning(
+                train_loaders=train_loaders,
+                val_loaders=val_loaders,
+                init_grp_args=init_grp_args,
+                mtgnet_args=mtgnet_args,
+                dataset_name=dataset_args.dataset_name,
+                gpu_id=basic_args.gpu_id,
+                backbone=mtl_design_args.backbone,
+                out_features=temp_args.out_features,
+                cv_task_args=cv_tasks_args)
 
-    # 波束搜索确定共享组的划分
-    print('finish the init_grouping with beam-search method...')
-    grouping = mtg_beam_search(
-        task_num=task_num, mtg_model=meta_model,
-        device=torch.device('cuda:' + basic_args.gpu_id if torch.cuda.is_available() else 'cpu'),
-        beam_width=beam_search_args.beam_width)
-    # end_time = time.time()
-    torch.save(meta_model.state_dict(), 'meta_model.pth')
-    save_dict = {}
-    save_dict['all_x'] = all_x
-    save_dict['all_y'] = all_y
-    save_dict['init_grp_args'] = init_grp_args
-    with open('meta_model_data.pkl', 'wb') as f:
-        pickle.dump(save_dict, f)
+            # 波束搜索确定共享组的划分
+            print('finish the init_grouping with beam-search method...')
+            grouping = mtg_beam_search(
+                task_num=task_num, mtg_model=meta_model,
+                device=torch.device('cuda:' + basic_args.gpu_id if torch.cuda.is_available() else 'cpu'),
+                beam_width=beam_search_args.beam_width)
+            end_time = time.time()
+            print(f'total time = {end_time - start_time}')
 
-    # grouping = [1, 3, 3, 3, 2]
-    # grouping = [2, 1, 1, 1, 3]
-    # exp_multi_task_train(grouping=grouping, train_loaders=train_loaders, cv_tasks_args=cv_tasks_args, val_loaders=val_loaders)
+            specify_post = f'_{param_name}_{str(i)}_{str(j)}'
+
+            torch.save(meta_model.state_dict(), f'meta_model{specify_post}.pth')
+            save_dict = {}
+            save_dict['all_x'] = all_x
+            save_dict['all_y'] = all_y
+            save_dict['init_grp_args'] = init_grp_args
+            save_dict['total_time'] = end_time - start_time
+            save_dict['grouping result'] = grouping
+            with open(f'meta_model_data{specify_post}.pkl', 'wb') as f:
+                pickle.dump(save_dict, f)
+            print(f'*****实验结束,当前i= {i} , j= {j} ,log已写入,总耗时 {end_time - start_time}*****')
+            # exp_multi_task_train(grouping=grouping, train_loaders=train_loaders, cv_tasks_args=cv_tasks_args, val_loaders=val_loaders)
 
     # try_mtl_train(
     #     train_loaders=train_loaders, val_loaders=val_loaders,
@@ -290,15 +307,15 @@ if __name__ == '__main__':
     #     lr=0.01, aux=False, amp=True, results_path_pre=None,
     #     with_eval=True)
 
-    # pagerank获得任务重要性
-    task_ranks, main_tasks = mtg_task_rank(
-        task_num=task_num, mtg_model=meta_model, device='cuda:' + basic_args.gpu_id,
-        task_rank_args=task_rank_args, grouping=grouping)
-
-    # 初始化参数共享模型(掩膜全通,为硬参数共享)
-    models = get_models(grouping=grouping, backbone_name=mtl_design_args.backbone,
-                        prune_names=single_prune_args.need_cut,
-                        out_features=temp_args.out_features, cv_task_args=cv_tasks_args)
+    # # pagerank获得任务重要性
+    # task_ranks, main_tasks = mtg_task_rank(
+    #     task_num=task_num, mtg_model=meta_model, device='cuda:' + basic_args.gpu_id,
+    #     task_rank_args=task_rank_args, grouping=grouping)
+    #
+    # # 初始化参数共享模型(掩膜全通,为硬参数共享)
+    # models = get_models(grouping=grouping, backbone_name=mtl_design_args.backbone,
+    #                     prune_names=single_prune_args.need_cut,
+    #                     out_features=temp_args.out_features, cv_task_args=cv_tasks_args)
 
 
 

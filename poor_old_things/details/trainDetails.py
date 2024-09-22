@@ -11,7 +11,7 @@ def train_one_batch(model: torch.nn.Module, optimizer: torch.optim.Optimizer, cr
     batch_x, batch_y, batch_mask = data_slice(*(parsed_data.get_train_set()), batch, batch_size)
     if len(batch_x) == 0:
         return
-    task_id_batch = parsed_data.task_id_repeated[:len(batch_x)]  # 将所有序号重复了batch_size遍
+    task_id_batch = parsed_data.task_id_repeated[:len(batch_x)]  # 将所有序号重复了batch_size遍用于填充训练输入
 
     # 前向传播
     output, attentions, task_embedding, encoder_output = model(batch_x, task_id_batch)

@@ -100,8 +100,8 @@ def data_shuffle(x, y, mask):
 
 
 def data_slice(x, y, mask, i, bs):
-    batch_from = bs * i
-    batch_to = bs * (i + 1)
+    batch_from = max(0, bs * i)
+    batch_to = min(bs * (i + 1), len(x))
     batch_x = x[batch_from: batch_to]
     batch_y = y[batch_from: batch_to]
     batch_mask = mask[batch_from: batch_to]
